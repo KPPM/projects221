@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>สมัครสมาชิก - TU Aroi</title>
+    
+    <!-- ⚠️ ดึงไฟล์ CSS กลับเข้ามา (หากชื่อไฟล์ CSS ของคุณไม่ใช่ style.css ให้เปลี่ยนชื่อตรงนี้) -->
+    <link rel="stylesheet" href="style.css">
+
     <!-- นำเข้า Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -42,9 +46,8 @@
         </p>
     </div>
 
-    <!-- โค้ดจัดการระบบสมัครสมาชิกผ่าน Supabase -->
+    <!-- สคริปต์เชื่อมต่อ Supabase -->
     <script>
-        // ⚠️ อย่าลืมนำ Project URL และ anon key จาก Supabase Dashboard มาวางตรงนี้
         const SUPABASE_URL = 'https://YOUR_PROJECT_ID.supabase.co';
         const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
         
@@ -53,14 +56,12 @@
         document.getElementById('registerForm').addEventListener('submit', async function(e) {
             e.preventDefault();
 
-            // ดึงค่าจากฟอร์ม
             const fullname = document.getElementById('fullname').value;
             const studentId = document.getElementById('studentId').value;
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
 
             try {
-                // ส่งข้อมูลไปสมัครสมาชิกที่ Supabase Auth
                 const { data, error } = await supabaseClient.auth.signUp({
                     email: email,
                     password: password,
