@@ -3,37 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>สมัครสมาชิก - TU Aroi</title>
-    <!-- นำเข้า Supabase SDK -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <title>ลงทะเบียน - TU Aroi</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body class="center-body">
     <div class="login-card" style="width: 420px; padding: 35px 40px;">
-        <div class="icon-circle">+</div>
+        <div class="icon-circle">✨</div>
         <h2>สมัครสมาชิก TU Aroi</h2>
         <p class="sub-text">บันทึกร้านโปรด ปักหมุดพิกัด และรีวิวความอร่อย</p>
 
         <form id="registerForm">
             <div class="form-group">
                 <label>ชื่อ - นามสกุล</label>
-                <input type="text" id="fullname" placeholder="สมชาย ใจดี" required>
+                <input type="text" placeholder="สมชาย ใจดี" required>
             </div>
-
             <div class="form-group">
                 <label>รหัสนักศึกษา (10 หลัก)</label>
-                <input type="text" id="studentId" placeholder="66xxxxxxxx" pattern="[0-9]{10}" required>
+                <input type="text" placeholder="66xxxxxxxx" pattern="[0-9]{10}" required>
             </div>
-
             <div class="form-group">
                 <label>อีเมลมหาวิทยาลัย (@tu.ac.th)</label>
-                <input type="email" id="email" placeholder="student@tu.ac.th" required>
+                <input type="email" placeholder="student@tu.ac.th" required>
             </div>
-
             <div class="form-group">
                 <label>รหัสผ่าน</label>
-                <input type="password" id="password" placeholder="อย่างน้อย 8 ตัวอักษร" minlength="8" required>
+                <input type="password" placeholder="อย่างน้อย 8 ตัวอักษร" minlength="8" required>
             </div>
-
             <button type="submit" class="btn-primary-red" style="width: 100%; margin-top: 10px;">ยืนยันสมัครสมาชิก</button>
         </form>
 
@@ -42,47 +37,13 @@
         </p>
     </div>
 
-    <!-- โค้ดจัดการระบบสมัครสมาชิกผ่าน Supabase -->
     <script>
-        // ⚠️ อย่าลืมนำ Project URL และ anon key จาก Supabase Dashboard มาวางตรงนี้
-        const SUPABASE_URL = 'https://YOUR_PROJECT_ID.supabase.co';
-        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
-        
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-        document.getElementById('registerForm').addEventListener('submit', async function(e) {
+        document.getElementById('registerForm').addEventListener('submit', function(e) {
             e.preventDefault();
-
-            // ดึงค่าจากฟอร์ม
-            const fullname = document.getElementById('fullname').value;
-            const studentId = document.getElementById('studentId').value;
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-
-            try {
-                // ส่งข้อมูลไปสมัครสมาชิกที่ Supabase Auth
-                const { data, error } = await supabaseClient.auth.signUp({
-                    email: email,
-                    password: password,
-                    options: {
-                        data: {
-                            full_name: fullname,
-                            student_id: studentId
-                        }
-                    }
-                });
-
-                if (error) {
-                    alert('เกิดข้อผิดพลาดในการลงทะเบียน: ' + error.message);
-                } else {
-                    alert('ลงทะเบียนสำเร็จ! ระบบกำลังพาคุณไปหน้าเข้าสู่ระบบ');
-                    window.location.href = 'login.html';
-                }
-            } catch (err) {
-                console.error(err);
-                alert('เกิดข้อผิดพลาดในการเชื่อมต่อระบบ');
-            }
+            alert('ลงทะเบียนสำเร็จ! ระบบกำลังพาคุณไปหน้าเข้าสู่ระบบ');
+            window.location.href = 'login.html';
         });
     </script>
+    <script src="script.js"></script>
 </body>
 </html>
