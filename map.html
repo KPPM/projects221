@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>แผนที่ร้านอร่อย - TU Aroi</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+        .map-wrapper {
+            position: relative;
+            width: 100%;
+            height: 520px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        #map { width: 100%; height: 100%; z-index: 1; }
+        .map-controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .control-btn {
+            background: #fff;
+            color: #333;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 30px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            font-size: 13px;
+        }
+        .control-btn:hover { background: #f0f0f0; transform: translateY(-2px); }
+        .control-btn.active { background: #a80018; color: #fff; }
+    </style>
+</head>
+<body>
+    <header class="navbar">
+        <div class="logo">TU Aroi</div>
+        <nav class="nav-links">
+            <a href="search.html">ค้นพบ</a>
+            <a href="profile.html">บันทึกไว้</a>
+            <a href="events.html">กิจกรรม</a>
+            <a href="map.html" class="active">แผนที่วิทยาเขต</a>
+        </nav>
+        <div class="header-right">
+            <a href="profile.html"><i class="fa-regular fa-user icon-btn"></i></a>
+            <a href="login.html" class="btn-primary-red" style="padding: 6px 14px; font-size: 13px;">เข้าสู่ระบบ</a>
+        </div>
+    </header>
+
+    <div class="container" style="flex-direction: column;">
+        <div class="content-header">
+            <div>
+                <h2>แผนที่พิกัดร้านอร่อย (มธ. รังสิต)</h2>
+                <p class="subtitle">คลิก "โหมดปักหมุด" เพื่อเพิ่มร้านค้าเด็ดๆ บนแผนที่ด้วยตัวเอง</p>
+            </div>
+        </div>
+
+        <div class="map-wrapper">
+            <div id="map"></div>
+            <div class="map-controls">
+                <button id="addPinBtn" class="control-btn" onclick="togglePinMode()">
+                    <i class="fa-solid fa-map-pin" style="color: #a80018;"></i> <span id="pinBtnText">โหมดปักหมุด</span>
+                </button>
+                <button class="control-btn" onclick="getCurrentLocation()">
+                    <i class="fa-solid fa-crosshairs" style="color: #007bff;"></i> ตำแหน่งของฉัน
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        let map, userMarker;
+        let isPinMode = false;
+        const customMarkers = [];
+
+        const tuCenter = [14.0722, 100.6025];
+        map = L.map('map').setView(tuCenter, 16);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        const defaultPlaces = [
+            { name: "ศูนย์อาหาร SC (Green Canteen)", coords: [14.0738, 100.6001], desc: "ศูนย์อาหารหลักใกล้อาคารเรียนรวม SC" },
+            { name: "ตึกบร.1 (บรรยายรวม 1)", coords: [14.0722, 100.6025], desc: "ตึกเรียนรวมฝั่งสังคมศาสตร์" },
+            { name: "หอสมุดป๋วย อึ๊งภากรณ์", coords: [14.0708, 100.6030], desc: "พื้นที่อ่านหนังสือและร้านกาแฟ" }
+        ];
+
+        defaultPlaces.forEach(place => {
+            const popupContent = `
+                <div style="padding: 2px;">
+                    <b style="color: #a80018; font-size: 14px;">${place.name}</b><br>
+                    <span style="font-size: 12px; color: #555;">${place.desc}</span>
+                </div>
+            `;
+            L.marker(place.coords).addTo(map).bindPopup(popupContent);
+        });
+
+        function togglePinMode() {
+            isPinMode = !isPinMode;
+            const btn = document.getElementById('addPinBtn');
+            const btnText = document.getElementById('pinBtnText');
+
+            if (isPinMode) {
+                btn.classList.add('active');
+                btnText.innerText = "กำลังอยู่ในโหมดปักหมุด (คลิกบนแผนที่)";
+                map.getContainer().style.cursor = 'crosshair';
+            } else {
+                btn.classList.remove('active');
+                btnText.innerText = "โหมดปักหมุด";
+                map.getContainer().style.cursor = '';
+            }
+        }
+
+        map.on('click', function(e) {
+            if (!isPinMode) return;
+
+            const name = prompt("ระบุชื่อร้านหรือสถานที่ต้องการปักหมุด:");
+            if (!name) return;
+
+            const desc = prompt("ระบุเมนูแนะนำ/คำอธิบายเพิ่มเติม:") || "";
+
+            const newMarker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map);
+            const popupContent = `
+                <div style="padding: 2px;">
+                    <b style="color: #a80018; font-size: 14px;">📍 ${name}</b><br>
+                    <span style="font-size: 12px; color: #555;">${desc}</span><br><br>
+                    <button onclick="removeMarker(${customMarkers.length})" style="background: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">ลบหมุดนี้</button>
+                </div>
+            `;
+
+            newMarker.bindPopup(popupContent).openPopup();
+            customMarkers.push(newMarker);
+            togglePinMode();
+        });
+
+        function removeMarker(index) {
+            if (customMarkers[index]) {
+                map.removeLayer(customMarkers[index]);
+            }
+        }
+
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const userCoords = [position.coords.latitude, position.coords.longitude];
+                        if (userMarker) {
+                            userMarker.setLatLng(userCoords);
+                        } else {
+                            userMarker = L.circleMarker(userCoords, {
+                                color: '#007bff', fillColor: '#007bff', fillOpacity: 0.8, radius: 10
+                            }).addTo(map);
+                        }
+                        userMarker.bindPopup("<b>คุณอยู่ที่นี่</b>").openPopup();
+                        map.setView(userCoords, 17);
+                    },
+                    () => alert("กรุณากดอนุญาตสิทธิ์ Location บนเบราว์เซอร์")
+                );
+            } else {
+                alert("เบราว์เซอร์นี้ไม่รองรับระบบ GPS");
+            }
+        }
+    </script>
+    <script src="script.js"></script>
+</body>
+</html>
