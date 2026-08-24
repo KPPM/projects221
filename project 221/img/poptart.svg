@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 260" width="400" height="260">
-  <defs><linearGradient id="g_poptart" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#c4568f"/>
-      <stop offset="100%" stop-color="#e6a0c4"/>
-    </linearGradient></defs>
-  <rect width="400" height="260" fill="url(#g_poptart)"/>
-  <g transform="translate(10.0,0)"><rect x="130" y="120" width="120" height="100" rx="6" fill="none" stroke="white" stroke-width="7" opacity="0.9"/><path d="M130 120l60 45 60-45" fill="none" stroke="white" stroke-width="5" opacity="0.6"/></g>
-  
-</svg>

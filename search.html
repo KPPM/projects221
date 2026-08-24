@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ค้นหาร้านอร่อย - TU Aroi</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <header class="navbar">
+        <div class="logo">TU Aroi</div>
+        <nav class="nav-links">
+            <a href="search.html" class="active">ค้นพบ</a>
+            <a href="profile.html">บันทึกไว้</a>
+            <a href="events.html">กิจกรรม</a>
+            <a href="map.html">แผนที่วิทยาเขต</a>
+        </nav>
+        <div class="header-right">
+            <div class="search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" placeholder="ค้นหาร้านอร่อย...">
+            </div>
+            <i class="fa-regular fa-bell icon-btn"></i>
+            <a href="profile.html"><i class="fa-regular fa-user icon-btn"></i></a>
+            <a href="login.html" class="btn-primary-red" style="padding: 6px 14px; font-size: 13px;">เข้าสู่ระบบ</a>
+        </div>
+    </header>
+
+    <div class="container">
+        <aside class="sidebar">
+            <h3>ตัวกรอง</h3>
+            <p class="sub-text">ค้นหาร้านเด็ดรอบ มธ.</p>
+            <div class="category-list">
+                <button class="cat-btn active"><i class="fa-solid fa-map"></i> ร้านทั้งหมด</button>
+                <button class="cat-btn"><i class="fa-solid fa-utensils"></i> อาหารและเครื่องดื่ม</button>
+                <button class="cat-btn"><i class="fa-solid fa-book-open"></i> โซนอ่านหนังสือ</button>
+                <button class="cat-btn"><i class="fa-solid fa-gamepad"></i> ศูนย์รวมเกม</button>
+                <button class="cat-btn"><i class="fa-solid fa-user-graduate"></i> บริการนักศึกษา</button>
+            </div>
+            <hr>
+            <h4>ตัวกรองด่วน</h4>
+            <label><input type="checkbox"> เปิดอยู่</label>
+            <label><input type="checkbox" checked> ระยะทาง &lt; 1 กม.</label>
+            <label><input type="checkbox"> 4 ดาวขึ้นไป</label>
+            <hr>
+            <h4>ช่วงราคา</h4>
+            <div class="price-btn-group">
+                <button class="price-btn active">$</button>
+                <button class="price-btn">$$</button>
+                <button class="price-btn">$$$</button>
+            </div>
+            <button class="reset-btn">ล้างตัวกรอง</button>
+        </aside>
+
+        <main class="content">
+            <div class="content-header">
+                <div>
+                    <h2>ค้นหาร้านอร่อย</h2>
+                    <p class="subtitle">แสดงร้านค้าและสถานที่รอบ มธ. รังสิต</p>
+                </div>
+                <div class="sort-dropdown">
+                    <label>เรียงโดย:</label>
+                    <select><option>แนะนำ</option></select>
+                </div>
+            </div>
+
+            <div class="card-grid">
+                <a href="detail.html" class="card-link">
+                    <div class="card">
+                        <div class="card-image">
+                            <img src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=500" alt="The Quad Coffee">
+                            <span class="badge badge-rating">★ 4.8</span>
+                            <span class="badge badge-discount">ส่วนลดนักศึกษา 15%</span>
+                        </div>
+                        <div class="card-info">
+                            <h3>The Quad Coffee</h3>
+                            <p class="desc">คาเฟ่และพื้นที่อ่านหนังสือ</p>
+                            <div class="card-footer">
+                                <span>📍 ใกล้ตึก SC 0.2 กม.</span>
+                                <span class="price">$$</span>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <button class="load-more-btn">โหลดร้านเพิ่มเติม</button>
+        </main>
+    </div>
+
+    <footer class="footer">
+        <div class="footer-logo">TU Aroi</div>
+        <p>© 2026 รวบรวมร้านเด็ดและสถานที่รอบมหาวิทยาลัยธรรมศาสตร์</p>
+    </footer>
+    <script src="script.js"></script>
+</body>
+</html>
