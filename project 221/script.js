@@ -126,14 +126,83 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  /* ---------- Review submit ---------- */
+  /* ---------- Supabase Initialization ---------- */
+  // ใส่ URL และ Anon Key ของโปรเจกต์ Supabase ของคุณ
+  const supabaseUrl = 'https://lcmqqovjgdkcbwyxxfwa.supabase.co';
+  const supabaseKey = 'sb_publishable_ljqn7Kr_anpQJ2k7PvHSig_zRSS5o-8';
+  const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+  /* ---------- Review submit (Updated with Backend) ---------- */
   const reviewForm = document.querySelector('.review-form');
   if (reviewForm) {
-    reviewForm.addEventListener('submit', (e) => {
+    reviewForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const submitBtn = reviewForm.querySelector('button[type="submit"]');
-      submitBtn.textContent = 'ส่งรีวิวแล้ว ✓';
+      
+      // ดึงค่าต่างๆ จากฟอร์ม
+      const rating = parseInt(document.querySelector('.star-picker').dataset.value || '0', 10);
+      const reviewText = document.querySelector('#reviewText').value;
+      const fileInput = document.querySelector('.upload-box input[type="file"]');
+      
+      // Validate เบื้องต้น (ไม่บังคับ แต่ควรมีเผื่อกรณีผู้ใช้ลืมกดดาว)
+      if (rating === 0) {
+        alert('กรุณาให้คะแนนดาวก่อนส่งรีวิว');
+        return;
+      }
+
+      // เปลี่ยนสถานะปุ่มตอนกำลังโหลด
+      submitBtn.textContent = 'กำลังส่งรีวิว...';
       submitBtn.disabled = true;
+
+      try {
+        let uploadedImageUrls = [];
+
+        // 1. จัดการอัปโหลดรูปภาพลง Supabase Storage (ถ้ามี)
+        if (fileInput && fileInput.files.length > 0) {
+          for (const file of fileInput.files) {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+            const filePath = `reviews/${fileName}`;
+
+            const { data: uploadData, error: uploadError } = await supabase.storage
+              .from('review_images') // ชื่อ Bucket ที่สร้างไว้
+              .upload(filePath, file);
+
+            if (uploadError) throw uploadError;
+
+            // ดึง Public URL ของไฟล์มาเก็บไว้
+            const { data: publicUrlData } = supabase.storage
+              .from('review_images')
+              .getPublicUrl(filePath);
+              
+            uploadedImageUrls.push(publicUrlData.publicUrl);
+          }
+        }
+
+        // 2. บันทึกข้อมูลรีวิวลง Table 'reviews'
+        const { error: insertError } = await supabase
+          .from('reviews')
+          .insert([
+            {
+              place_id: 'the_study_hub', // ควบคุม id สถานที่ตามหน้าต่าง ๆ
+              rating: rating,
+              review_text: reviewText,
+              image_urls: uploadedImageUrls,
+            }
+          ]);
+
+        if (insertError) throw insertError;
+
+        // หากทำงานสำเร็จ จะแสดงผลตาม UI เดิมของ Frontend
+        submitBtn.textContent = 'ส่งรีวิวแล้ว ✓';
+        // คุณสามารถเพิ่มโค้ดล้างค่าฟอร์ม หรือ redirect ผู้ใช้ได้ที่นี่
+
+      } catch (error) {
+        console.error('Error submitting review:', error.message);
+        submitBtn.textContent = 'ส่งรีวิว'; // คืนสถานะปุ่มหากมี Error
+        submitBtn.disabled = false;
+        alert('เกิดข้อผิดพลาดในการส่งรีวิว กรุณาลองใหม่อีกครั้ง');
+      }
     });
   }
 
