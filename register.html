@@ -48,42 +48,54 @@
 
     <!-- สคริปต์เชื่อมต่อ Supabase -->
     <script>
-        const SUPABASE_URL = 'https://YOUR_PROJECT_ID.supabase.co';
-        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
-        
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // ⚠️ นำ Project URL และ anon key จาก Supabase Dashboard มาวางตรงนี้
+    const SUPABASE_URL = 'https://lcmqqovjgdkcbwyxxfwa.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_ljqn7Kr_anpQJ2k7PvHSig_zRSS5o-8';
+    
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        document.getElementById('registerForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
+    document.getElementById('registerForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
 
-            const fullname = document.getElementById('fullname').value;
-            const studentId = document.getElementById('studentId').value;
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
+        // ดึงค่าจากฟอร์ม
+        const fullname = document.getElementById('fullname').value.trim();
+        const studentId = document.getElementById('studentId').value.trim();
+        const email = document.getElementById('email').value.trim().toLowerCase();
+        const password = document.getElementById('password').value;
 
-            try {
-                const { data, error } = await supabaseClient.auth.signUp({
-                    email: email,
-                    password: password,
-                    options: {
-                        data: {
-                            full_name: fullname,
-                            student_id: studentId
-                        }
+        // 🔥 ระบบตรวจสอบอีเมลมหาวิทยาลัยธรรมศาสตร์
+        // รองรับทั้ง @tu.ac.th (อาจารย์/บุคลากร/เมลหลัก) และ @dome.tu.ac.th (เมลนักศึกษาเดิม)
+        const tuEmailPattern = /^[a-zA-Z0-9._%+-]+@(tu\.ac\.th|dome\.tu\.ac\.th)$/;
+
+        if (!tuEmailPattern.test(email)) {
+            alert('❌ ปฏิเสธการลงทะเบียน: ระบบนี้อนุญาตให้ใช้เฉพาะอีเมลมหาวิทยาลัยธรรมศาสตร์ (@tu.ac.th หรือ @dome.tu.ac.th) เท่านั้น');
+            return; // หยุดการทำงานทันที ไม่ส่งไป Supabase
+        }
+
+        try {
+            // ส่งข้อมูลไปสมัครสมาชิกที่ Supabase Auth
+            const { data, error } = await supabaseClient.auth.signUp({
+                email: email,
+                password: password,
+                options: {
+                    data: {
+                        full_name: fullname,
+                        student_id: studentId
                     }
-                });
-
-                if (error) {
-                    alert('เกิดข้อผิดพลาดในการลงทะเบียน: ' + error.message);
-                } else {
-                    alert('ลงทะเบียนสำเร็จ! ระบบกำลังพาคุณไปหน้าเข้าสู่ระบบ');
-                    window.location.href = 'login.html';
                 }
-            } catch (err) {
-                console.error(err);
-                alert('เกิดข้อผิดพลาดในการเชื่อมต่อระบบ');
+            });
+
+            if (error) {
+                alert('เกิดข้อผิดพลาดในการลงทะเบียน: ' + error.message);
+            } else {
+                alert('🎉 ลงทะเบียนสำเร็จ! ระบบกำลังพาคุณไปหน้าเข้าสู่ระบบ (อย่าลืมยืนยันอีเมลในกล่องข้อความหากเปิดระบบ Email Verification ไว้)');
+                window.location.href = 'login.html';
             }
-        });
+        } catch (err) {
+            console.error(err);
+            alert('เกิดข้อผิดพลาดในการเชื่อมต่อระบบ');
+        }
+    });
     </script>
 </body>
 </html>

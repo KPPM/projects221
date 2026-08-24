@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>เข้าสู่ระบบ - TU Aroi</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="center-body">
     <div class="login-card">
@@ -16,14 +17,14 @@
 
         <div class="divider">หรือเข้าสู่ระบบแบบปกติ</div>
 
-        <form action="search.html">
+        <form id="loginForm">
             <div class="form-group">
                 <label>อีเมลมหาวิทยาลัย / รหัสนักศึกษา</label>
-                <input type="text" placeholder="student@tu.ac.th" required>
+                <input type="email" id="email" placeholder="student@tu.ac.th" required>
             </div>
             <div class="form-group">
                 <label>รหัสผ่าน <a href="#" style="float: right; color: #a80018; font-size: 11px;">ลืมรหัสผ่าน?</a></label>
-                <input type="password" placeholder="••••••••" required>
+                <input type="password" id="password" placeholder="••••••••" required>
             </div>
             <button type="submit" class="btn-primary-red" style="width: 100%; margin-top: 10px;">เข้าสู่ระบบ ➔</button>
         </form>
@@ -32,6 +33,47 @@
             ยังไม่มีบัญชีผู้ใช้? <a href="register.html" style="color: #a80018; font-weight: bold;">ลงทะเบียนใหม่</a>
         </p>
     </div>
+
+    <!-- สคริปต์เชื่อมต่อ Supabase -->
+    <script>
+        const SUPABASE_URL = 'https://lcmqqovjgdkcbwyxxfwa.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_ljqn7Kr_anpQJ2k7PvHSig_zRSS5o-8';
+        
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const email = document.getElementById('email').value.trim().toLowerCase();
+            const password = document.getElementById('password').value;
+
+            // ตรวจสอบเบื้องต้นตอนล็อกอินด้วยเพื่อความปลอดภัยอีกชั้น
+            const tuEmailPattern = /^[a-zA-Z0-9._%+-]+@(tu\.ac\.th|dome\.tu\.ac\.th)$/;
+            if (!tuEmailPattern.test(email)) {
+                alert('❌ อีเมลนี้ไม่ใช่อีเมลของมหาวิทยาลัยธรรมศาสตร์');
+                return;
+            }
+
+            try {
+                // ส่งข้อมูลไปตรวจสอบที่ Supabase Auth
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+
+                if (error) {
+                    alert('เข้าสู่ระบบไม่สำเร็จ: ' + error.message);
+                } else {
+                    alert('🔓 เข้าสู่ระบบสำเร็จ!');
+                    // พาไปยังหน้าค้นหา/หน้าแรกหลังจาก Login ผ่าน
+                    window.location.href = 'search.html'; 
+                }
+            } catch (err) {
+                console.error(err);
+                alert('เกิดข้อผิดพลาดในการเชื่อมต่อระบบ');
+            }
+        });
+    </script>
     <script src="script.js"></script>
 </body>
 </html>
