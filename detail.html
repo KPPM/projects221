@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Quad Coffee - TU Aroi</title>
+    <title>เดอะ เดลี่ แกรนด์ คาเฟ่ - TU Aroi</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -13,23 +13,132 @@
         <nav class="nav-links">
             <a href="search.html">ค้นพบ</a>
             <a href="profile.html">บันทึกไว้</a>
-            <a href="events.html">กิจกรรม</a>
+            <a href="events.html" class="active">กิจกรรม</a>
             <a href="map.html">แผนที่วิทยาเขต</a>
         </nav>
         <div class="header-right">
+            <a href="profile.html"><i class="fa-regular fa-user icon-btn"></i></a>
             <a href="login.html" class="btn-primary-red" style="padding: 6px 14px; font-size: 13px;">เข้าสู่ระบบ</a>
         </div>
     </header>
 
-    <div class="container" style="flex-direction: column;">
-        <h2>The Quad Coffee (มธ. รังสิต)</h2>
-        <p>★ 4.8 (124 รีวิวจากนักศึกษา)</p>
-        <img src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=1200" alt="Cover" style="width: 100%; height: 300px; object-fit: cover; border-radius: 12px; margin: 15px 0;">
-        <div class="detail-info">
-            <h3>เวลาเปิด-ปิด</h3>
-            <p>จันทร์ - ศุกร์ : 07:00 น. - 22:00 น.</p>
+    <div class="detail-container">
+        <a href="events.html" class="back-link"><i class="fa-solid fa-arrow-left"></i> กลับไปหน้ารายการกิจกรรม</a>
+
+        <!-- Header Banner Image -->
+        <div class="detail-header-card">
+            <div class="detail-cover">
+                <img src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=1200" alt="The Study Hub">
+                <div class="detail-cover-overlay">
+                    <span class="detail-tag">อาคารองค์การนักศึกษา</span>
+                    <h1>เดอะ เดลี่ แกรนด์ คาเฟ่ (The Study Hub)</h1>
+                    <p>อาคารองค์การนักศึกษา, ชั้น G &nbsp;|&nbsp; ⭐ 4.8 (124 รีวิว)</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="detail-grid">
+            <!-- ฝั่งซ้าย: ข้อมูลร้านค้า -->
+            <div>
+                <div class="info-box">
+                    <h3><i class="fa-regular fa-clock" style="color: #a80018;"></i> เวลาทำการ</h3>
+                    <div class="hours-list">
+                        <div class="hours-row">
+                            <span>จันทร์ - ศุกร์</span>
+                            <strong>7:00 AM - 10:00 PM</strong>
+                        </div>
+                        <div class="hours-row">
+                            <span>เสาร์</span>
+                            <strong>8:00 AM - 8:00 PM</strong>
+                        </div>
+                        <div class="hours-row" style="border:none;">
+                            <span>อาทิตย์</span>
+                            <strong>9:00 AM - 6:00 PM</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-box">
+                    <h3><i class="fa-solid fa-utensils" style="color: #a80018;"></i> เมนูยอดฮิต</h3>
+                    <div class="popular-menu-grid">
+                        <div class="menu-item">
+                            <img src="https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=200" alt="Menu">
+                            <p>วาเลนซาลาเต้</p>
+                            <span>฿4.50</span>
+                        </div>
+                        <div class="menu-item">
+                            <img src="https://images.unsplash.com/photo-1525351484163-7529414344d8?w=200" alt="Menu">
+                            <p>อะโวคาโดโทสต์</p>
+                            <span>฿6.00</span>
+                        </div>
+                        <div class="menu-item">
+                            <img src="https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=200" alt="Menu">
+                            <p>อัลมอนด์ครัวซองต์</p>
+                            <span>฿3.50</span>
+                        </div>
+                        <div class="menu-item">
+                            <img src="https://images.unsplash.com/photo-1534778101976-62847782c213?w=200" alt="Menu">
+                            <p>มัทฉะลาเต้</p>
+                            <span>฿5.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- พรีวิวรีวิว + ปุ่มกดไปหน้ารีวิว -->
+                <div class="info-box">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 style="margin:0;"><i class="fa-regular fa-star" style="color: #a80018;"></i> รีวิวจากนักศึกษา</h3>
+                        <a href="review.html" class="btn-primary-red" style="padding: 6px 14px; font-size: 13px; text-decoration: none; display: inline-block;">เขียนรีวิว</a>
+                    </div>
+
+                    <div class="review-item">
+                        <div class="review-header">
+                            <div class="review-user">
+                                <div class="review-avatar">A</div>
+                                <span>อนันต์ ธ.</span>
+                            </div>
+                            <div class="review-stars">⭐⭐⭐⭐⭐</div>
+                        </div>
+                        <p class="review-text">กาแฟที่ดีที่สุดในมหาวิทยาลัย แถวยาวช่วงประมาณ 10 โมงแต่รอไม่นาน นั่งอ่านหนังสือสบายมาก</p>
+                    </div>
+
+                    <div style="text-align: center; margin-top: 15px;">
+                        <a href="review.html" style="color: #a80018; font-size: 14px; font-weight: bold; text-decoration: underline;">ดูรีวิวทั้งหมดและให้คะแนน (124) →</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ฝั่งขวา: แผนที่ Google Maps + ปุ่มคลิกไปหน้ารีวิว -->
+            <div>
+                <div class="info-box" style="position: sticky; top: 20px;">
+                    <h3><i class="fa-solid fa-location-dot" style="color: #a80018;"></i> ที่ตั้ง</h3>
+                    <p style="font-size: 14px; color: #555; margin-bottom: 15px;">
+                        อาคารองค์การนักศึกษา ชั้น G ฝั่งเหนือ<br>มหาวิทยาลัยธรรมศาสตร์ ศูนย์รังสิต
+                    </p>
+                    
+                    <!-- Google Maps Embed Interactive -->
+                    <div style="width: 100%; height: 220px; border-radius: 8px; overflow: hidden; margin-bottom: 15px; border: 1px solid #ddd;">
+                        <iframe 
+                            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3870.337583681788!2d100.60337837589146!3d14.074902186351052!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x30e280145c22f483%3A0x6b16e8b2b6408221!2z4Lih4Lir4Liy4Lin4LiBounds4Lio4Liy4Liq4Liy4Lij4LmA4LiB4LmB4LiE4LmI!5e0!3m2!1sth!2sth!4v1700000000000!5m2!1sth!2sth" 
+                            width="100%" 
+                            height="100%" 
+                            style="border:0;" 
+                            allowfullscreen="" 
+                            loading="lazy" 
+                            referrerpolicy="no-referrer-when-downgrade">
+                        </iframe>
+                    </div>
+
+                    <a href="review.html" class="btn-primary-red" style="display: block; width: 100%; text-align: center; text-decoration: none; box-sizing: border-box; padding: 12px;">เขียนรีวิว / ดูรีวิวทั้งหมด</a>
+                </div>
+            </div>
         </div>
     </div>
+
+    <footer class="footer-simple">
+        © 2026 TU Aroi (UniDirectory). Built for the academic community.
+    </footer>
+
     <script src="script.js"></script>
 </body>
 </html>

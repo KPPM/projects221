@@ -275,3 +275,189 @@ hr {
     margin-top: 50px;
 }
 .footer-logo { font-weight: bold; color: #a80018; }
+
+/* ====================================================
+   เฉพาะส่วนที่เพิ่มเข้ามาสำหรับหน้ารายละเอียดและรีวิว
+   (แยก Class ชัดเจนเพื่อไม่ให้กระทบหน้าเดิม)
+   ==================================================== */
+.detail-container {
+    max-width: 1100px;
+    margin: 20px auto 40px;
+    padding: 0 20px;
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 15px;
+    transition: color 0.2s;
+}
+.back-link:hover { color: #a80018; }
+
+.detail-header-card {
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+    margin-bottom: 25px;
+}
+
+.detail-cover {
+    position: relative;
+    width: 100%;
+    height: 380px;
+}
+.detail-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.detail-cover-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 30px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.8));
+    color: #fff;
+}
+.detail-tag {
+    background: #a80018;
+    color: #fff;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+}
+.detail-cover-overlay h1 { font-size: 28px; margin-bottom: 5px; }
+.detail-cover-overlay p { font-size: 14px; opacity: 0.9; }
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: 1.8fr 1.2fr;
+    gap: 25px;
+}
+
+.info-box {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+    margin-bottom: 25px;
+}
+.info-box h3 {
+    font-size: 18px;
+    color: #222;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.hours-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 14px;
+}
+.hours-row {
+    display: flex;
+    justify-content: space-between;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed #eee;
+}
+
+.popular-menu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 15px;
+}
+.menu-item {
+    text-align: center;
+    background: #fdfdfd;
+    border: 1px solid #f0f0f0;
+    border-radius: 8px;
+    padding: 10px;
+}
+.menu-item img {
+    width: 100%;
+    height: 85px;
+    object-fit: cover;
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+.menu-item p { font-size: 13px; font-weight: bold; color: #333; margin-bottom: 2px; }
+.menu-item span { font-size: 12px; color: #a80018; font-weight: bold; }
+
+/* Interactive Rating */
+.star-rating-input {
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    gap: 6px;
+    font-size: 26px;
+    margin-bottom: 15px;
+}
+.star-rating-input input { display: none; }
+.star-rating-input label {
+    color: #ccc;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+.star-rating-input label:hover,
+.star-rating-input label:hover ~ label,
+.star-rating-input input:checked ~ label {
+    color: #fca511;
+}
+
+.review-textarea {
+    width: 100%;
+    height: 110px;
+    padding: 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    resize: none;
+    font-size: 14px;
+    outline: none;
+    background: #fafafa;
+}
+.review-textarea:focus { border-color: #a80018; background: #fff; }
+
+.file-upload-box {
+    border: 2px dashed #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    color: #777;
+    cursor: pointer;
+    margin: 15px 0;
+    background: #fafafa;
+    transition: background 0.2s;
+}
+.file-upload-box:hover { background: #f0f0f0; border-color: #bbb; }
+
+.review-item {
+    padding: 15px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+.review-item:last-child { border-bottom: none; }
+.review-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.review-user { font-weight: bold; font-size: 14px; color: #333; display: flex; align-items: center; gap: 8px; }
+.review-avatar { width: 32px; height: 32px; border-radius: 50%; background: #eee; display: flex; align-items: center; justify-content: center; color: #666; font-size: 12px; font-weight: bold; }
+.review-stars { color: #fca511; font-size: 13px; }
+.review-date { font-size: 12px; color: #999; }
+.review-text { font-size: 14px; color: #555; line-height: 1.6; }
+
+.footer-simple {
+    text-align: center;
+    padding: 30px;
+    color: #888;
+    font-size: 12px;
+    border-top: 1px solid #eee;
+    margin-top: 50px;
+}
