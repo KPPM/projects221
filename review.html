@@ -6,6 +6,8 @@
     <title>ระบบรีวิวและให้คะแนน - TU Aroi</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- เชื่อมต่อ Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <header class="navbar">
@@ -35,10 +37,9 @@
             <!-- Left Side: Interactive Rating Form -->
             <div class="info-box">
                 <h3>เขียนรีวิว</h3>
-                <form onsubmit="event.preventDefault(); alert('ส่งรีวิวเรียบร้อยแล้ว!');">
+                <form id="review-form">
                     <label style="display: block; font-size: 13px; color: #666; margin-bottom: 6px;">ให้คะแนนสถานที่:</label>
                     
-                    <!-- CSS Interactive Star Rating System -->
                     <div class="star-rating-input">
                         <input type="radio" id="star5" name="rating" value="5"><label for="star5" class="fa-solid fa-star"></label>
                         <input type="radio" id="star4" name="rating" value="4"><label for="star4" class="fa-solid fa-star"></label>
@@ -49,46 +50,27 @@
                     <p id="selected-rating-text" style="font-size: 12px; color: #a80018; margin-bottom: 12px; font-weight: bold;"></p>
 
                     <label style="display: block; font-size: 13px; color: #666; margin-bottom: 6px;">ความคิดเห็น:</label>
-                    <textarea class="review-textarea" placeholder="บอกเล่าประสบการณ์ของคุณที่นี่..."></textarea>
+                    <textarea id="review-comment" class="review-textarea" placeholder="บอกเล่าประสบการณ์ของคุณที่นี่..."></textarea>
 
                     <label style="display: block; font-size: 13px; color: #666; margin-top: 15px; margin-bottom: 6px;">แนบรูปภาพ (ถ้ามี):</label>
                     <label for="review-photo" class="file-upload-box" style="display: block;">
                         <i class="fa-solid fa-cloud-arrow-up" style="font-size: 24px; color: #a80018; margin-bottom: 6px;"></i>
                         <p style="font-size: 13px;">คลิกเพื่ออัปโหลด หรือลากไฟล์มาวางที่นี่</p>
-                        <p id="photo-name" style="font-size: 11px; margin-top: 4px;"></p>
-                        <input type="file" id="review-photo" accept="image/*" style="display: none;">
+                        <input type="file" id="review-photo" accept="image/*" multiple style="display: none;">
                     </label>
 
-                    <button type="submit" class="btn-primary-red" style="width: 100%; margin-top: 10px;">ส่งรีวิว</button>
+                    <!-- พื้นที่แสดงตัวอย่างรูปภาพก่อนส่ง -->
+                    <div id="image-preview-container" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px;"></div>
+
+                    <button type="submit" id="submit-review-btn" class="btn-primary-red" style="width: 100%;">ส่งรีวิว</button>
                 </form>
             </div>
 
             <!-- Right Side: Review History List -->
-            <div class="info-box">
+            <div class="info-box" id="reviews-list-container">
                 <h3>รีวิวล่าสุด</h3>
-                <div class="review-item">
-                    <div class="review-header">
-                        <div class="review-user">
-                            <div class="review-avatar">TN</div>
-                            <span>ธนภัทร ม.</span>
-                        </div>
-                        <span class="review-date">12 ก.ย. 2026</span>
-                    </div>
-                    <div class="review-stars" style="margin-bottom: 6px;">⭐⭐⭐⭐⭐</div>
-                    <p class="review-text">ที่นั่งกว้างขวาง บรรยากาศเงียบสงบ เหมาะกับการมานั่งอ่านหนังสือหรือทำงานกลุ่มมากครับ ปลั๊กไฟเยอะดีด้วย</p>
-                </div>
-
-                <div class="review-item">
-                    <div class="review-header">
-                        <div class="review-user">
-                            <div class="review-avatar">WP</div>
-                            <span>วิภาดา พ.</span>
-                        </div>
-                        <span class="review-date">5 ก.ย. 2026</span>
-                    </div>
-                    <div class="review-stars" style="margin-bottom: 6px;">⭐⭐⭐⭐☆</div>
-                    <p class="review-text">โดยรวมดีค่ะ แอร์เย็นสบายมาก กาแฟอร่อยแต่ช่วงบ่ายคนแน่นนิดนึง แนะนำให้มาช่วงเช้าจะเงียบสงบกว่าค่ะ</p>
-                </div>
+                <!-- ข้อมูลจากฐานข้อมูลจะถูกดึงมาแสดงผลตรงนี้ -->
+                <div id="reviews-content-area"></div>
             </div>
         </div>
     </div>

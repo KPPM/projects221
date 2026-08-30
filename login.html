@@ -23,7 +23,7 @@
         </p>
     </div>
 
-    <!-- สคริปต์เชื่อมต่อ Supabase และตรวจสอบโดเมน -->
+    <!-- สคริปต์เชื่อมต่อ Supabase และตรวจสอบโดเมน มธ. -->
     <script>
         const SUPABASE_URL = 'https://lcmqqovjgdkcbwyxxfwa.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_ljqn7Kr_anpQJ2k7PvHSig_zRSS5o-8';
@@ -52,15 +52,15 @@
             
             if (session && session.user) {
                 const email = session.user.email;
-                const tuEmailPattern = /^[a-zA-Z0-9._%+-]+@(tu\.ac\.th|dome\.tu\.ac\.th)$/;
                 
-                if (tuEmailPattern.test(email)) {
+                // ตรวจสอบโดเมนของอีเมล
+                if (email.endsWith('@tu.ac.th') || email.endsWith('@dome.tu.ac.th')) {
                     // โดเมนถูกต้อง นำทางไปหน้าค้นพบ (Search)
                     window.location.href = 'search.html';
                 } else {
                     // โดเมนไม่ถูกต้อง บังคับออกจากระบบทันที
                     await supabaseClient.auth.signOut();
-                    alert('❌ ปฏิเสธการเข้าถึง: ระบบอนุญาตเฉพาะอีเมล @tu.ac.th หรือ @dome.tu.ac.th เท่านั้น');
+                    alert('❌ ปฏิเสธการเข้าถึง: ระบบอนุญาตเฉพาะอีเมล @tu.ac.th หรือ @dome.tu.ac.th ของมหาวิทยาลัยธรรมศาสตร์เท่านั้น');
                 }
             }
         });
