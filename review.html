@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบรีวิวและให้คะแนน - TU Aroi</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <header class="navbar">
+        <div class="logo">TU Aroi</div>
+        <nav class="nav-links">
+            <a href="search.html">ค้นพบ</a>
+            <a href="profile.html">บันทึกไว้</a>
+            <a href="events.html" class="active">กิจกรรม</a>
+            <a href="map.html">แผนที่วิทยาเขต</a>
+        </nav>
+        <div class="header-right">
+            <a href="profile.html"><i class="fa-regular fa-user icon-btn"></i></a>
+        </div>
+    </header>
+
+    <div class="detail-container">
+        <a href="detail.html" class="back-link"><i class="fa-solid fa-arrow-left"></i> กลับไปหน้ารายละเอียดร้าน</a>
+
+        <div style="margin-bottom: 25px;">
+            <h1 style="font-size: 26px; color: #111;">The Study Hub (เดอะ เดลี่ แกรนด์ คาเฟ่)</h1>
+            <p style="color: #666; margin-top: 4px;">
+                <span style="color: #fca511; font-weight: bold;">⭐ 4.8</span> (124 รีวิว)
+            </p>
+        </div>
+
+        <div class="detail-grid">
+            <!-- Left Side: Interactive Rating Form -->
+            <div class="info-box">
+                <h3>เขียนรีวิว</h3>
+                <form onsubmit="event.preventDefault(); alert('ส่งรีวิวเรียบร้อยแล้ว!');">
+                    <label style="display: block; font-size: 13px; color: #666; margin-bottom: 6px;">ให้คะแนนสถานที่:</label>
+                    
+                    <!-- CSS Interactive Star Rating System -->
+                    <div class="star-rating-input">
+                        <input type="radio" id="star5" name="rating" value="5"><label for="star5" class="fa-solid fa-star"></label>
+                        <input type="radio" id="star4" name="rating" value="4"><label for="star4" class="fa-solid fa-star"></label>
+                        <input type="radio" id="star3" name="rating" value="3"><label for="star3" class="fa-solid fa-star"></label>
+                        <input type="radio" id="star2" name="rating" value="2"><label for="star2" class="fa-solid fa-star"></label>
+                        <input type="radio" id="star1" name="rating" value="1"><label for="star1" class="fa-solid fa-star"></label>
+                    </div>
+                    <p id="selected-rating-text" style="font-size: 12px; color: #a80018; margin-bottom: 12px; font-weight: bold;"></p>
+
+                    <label style="display: block; font-size: 13px; color: #666; margin-bottom: 6px;">ความคิดเห็น:</label>
+                    <textarea class="review-textarea" placeholder="บอกเล่าประสบการณ์ของคุณที่นี่..."></textarea>
+
+                    <label style="display: block; font-size: 13px; color: #666; margin-top: 15px; margin-bottom: 6px;">แนบรูปภาพ (ถ้ามี):</label>
+                    <label for="review-photo" class="file-upload-box" style="display: block;">
+                        <i class="fa-solid fa-cloud-arrow-up" style="font-size: 24px; color: #a80018; margin-bottom: 6px;"></i>
+                        <p style="font-size: 13px;">คลิกเพื่ออัปโหลด หรือลากไฟล์มาวางที่นี่</p>
+                        <p id="photo-name" style="font-size: 11px; margin-top: 4px;"></p>
+                        <input type="file" id="review-photo" accept="image/*" style="display: none;">
+                    </label>
+
+                    <button type="submit" class="btn-primary-red" style="width: 100%; margin-top: 10px;">ส่งรีวิว</button>
+                </form>
+            </div>
+
+            <!-- Right Side: Review History List -->
+            <div class="info-box">
+                <h3>รีวิวล่าสุด</h3>
+                <div class="review-item">
+                    <div class="review-header">
+                        <div class="review-user">
+                            <div class="review-avatar">TN</div>
+                            <span>ธนภัทร ม.</span>
+                        </div>
+                        <span class="review-date">12 ก.ย. 2026</span>
+                    </div>
+                    <div class="review-stars" style="margin-bottom: 6px;">⭐⭐⭐⭐⭐</div>
+                    <p class="review-text">ที่นั่งกว้างขวาง บรรยากาศเงียบสงบ เหมาะกับการมานั่งอ่านหนังสือหรือทำงานกลุ่มมากครับ ปลั๊กไฟเยอะดีด้วย</p>
+                </div>
+
+                <div class="review-item">
+                    <div class="review-header">
+                        <div class="review-user">
+                            <div class="review-avatar">WP</div>
+                            <span>วิภาดา พ.</span>
+                        </div>
+                        <span class="review-date">5 ก.ย. 2026</span>
+                    </div>
+                    <div class="review-stars" style="margin-bottom: 6px;">⭐⭐⭐⭐☆</div>
+                    <p class="review-text">โดยรวมดีค่ะ แอร์เย็นสบายมาก กาแฟอร่อยแต่ช่วงบ่ายคนแน่นนิดนึง แนะนำให้มาช่วงเช้าจะเงียบสงบกว่าค่ะ</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer-simple">
+        © 2026 TU Aroi (UniDirectory). Built for the academic community.
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
