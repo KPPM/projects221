@@ -5,72 +5,63 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>เข้าสู่ระบบ - TU Aroi</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="center-body">
     <div class="login-card">
         <div class="icon-circle">🍜</div>
         <h2>TU Aroi</h2>
-        <p class="sub-text">เข้าสู่ระบบเพื่อรีวิวและตามรอยร้านอร่อยรอบ มธ.</p>
+        <p class="sub-text">เข้าสู่ระบบด้วยอีเมลมหาวิทยาลัยธรรมศาสตร์<br>(@tu.ac.th หรือ @dome.tu.ac.th)</p>
 
-        <button class="btn-student-login">🏛️ เข้าสู่ระบบด้วย TU Great App</button>
+        <button id="googleLoginBtn" class="btn-primary-red" style="width: 100%; margin-top: 20px; display: flex; justify-content: center; align-items: center; gap: 10px; background-color: #4285F4; border: none; font-size: 15px;">
+            <i class="fa-brands fa-google"></i> เข้าสู่ระบบด้วย Google
+        </button>
 
-        <div class="divider">หรือเข้าสู่ระบบแบบปกติ</div>
-
-        <form id="loginForm">
-            <div class="form-group">
-                <label>อีเมลมหาวิทยาลัย / รหัสนักศึกษา</label>
-                <input type="email" id="email" placeholder="student@tu.ac.th" required>
-            </div>
-            <div class="form-group">
-                <label>รหัสผ่าน <a href="#" style="float: right; color: #a80018; font-size: 11px;">ลืมรหัสผ่าน?</a></label>
-                <input type="password" id="password" placeholder="••••••••" required>
-            </div>
-            <button type="submit" class="btn-primary-red" style="width: 100%; margin-top: 10px;">เข้าสู่ระบบ ➔</button>
-        </form>
-
-        <p style="font-size: 13px; margin-top: 20px; color: #666;">
+        <p style="font-size: 13px; margin-top: 25px; color: #666;">
             ยังไม่มีบัญชีผู้ใช้? <a href="register.html" style="color: #a80018; font-weight: bold;">ลงทะเบียนใหม่</a>
         </p>
     </div>
 
-    <!-- สคริปต์เชื่อมต่อ Supabase -->
+    <!-- สคริปต์เชื่อมต่อ Supabase และตรวจสอบโดเมน -->
     <script>
         const SUPABASE_URL = 'https://lcmqqovjgdkcbwyxxfwa.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_ljqn7Kr_anpQJ2k7PvHSig_zRSS5o-8';
-        
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-
-            const email = document.getElementById('email').value.trim().toLowerCase();
-            const password = document.getElementById('password').value;
-
-            // ตรวจสอบเบื้องต้นตอนล็อกอินด้วยเพื่อความปลอดภัยอีกชั้น
-            const tuEmailPattern = /^[a-zA-Z0-9._%+-]+@(tu\.ac\.th|dome\.tu\.ac\.th)$/;
-            if (!tuEmailPattern.test(email)) {
-                alert('❌ อีเมลนี้ไม่ใช่อีเมลของมหาวิทยาลัยธรรมศาสตร์');
-                return;
-            }
-
+        // 1. เมื่อกดปุ่มเข้าสู่ระบบด้วย Google
+        document.getElementById('googleLoginBtn').addEventListener('click', async function() {
             try {
-                // ส่งข้อมูลไปตรวจสอบที่ Supabase Auth
-                const { data, error } = await supabaseClient.auth.signInWithPassword({
-                    email: email,
-                    password: password
+                const { error } = await supabaseClient.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        // ให้ Redirect กลับมาที่หน้า login ก่อนเพื่อตรวจสอบโดเมน
+                        redirectTo: window.location.href 
+                    }
                 });
-
-                if (error) {
-                    alert('เข้าสู่ระบบไม่สำเร็จ: ' + error.message);
-                } else {
-                    alert('🔓 เข้าสู่ระบบสำเร็จ!');
-                    // พาไปยังหน้าค้นหา/หน้าแรกหลังจาก Login ผ่าน
-                    window.location.href = 'search.html'; 
-                }
+                if (error) throw error;
             } catch (err) {
                 console.error(err);
-                alert('เกิดข้อผิดพลาดในการเชื่อมต่อระบบ');
+                alert('เกิดข้อผิดพลาดในการเชื่อมต่อระบบ Google Login');
+            }
+        });
+
+        // 2. ตรวจสอบ Session เมื่อโหลดหน้า (กรณีกลับมาจากการ Login ของ Google)
+        window.addEventListener('load', async () => {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            
+            if (session && session.user) {
+                const email = session.user.email;
+                const tuEmailPattern = /^[a-zA-Z0-9._%+-]+@(tu\.ac\.th|dome\.tu\.ac\.th)$/;
+                
+                if (tuEmailPattern.test(email)) {
+                    // โดเมนถูกต้อง นำทางไปหน้าค้นพบ (Search)
+                    window.location.href = 'search.html';
+                } else {
+                    // โดเมนไม่ถูกต้อง บังคับออกจากระบบทันที
+                    await supabaseClient.auth.signOut();
+                    alert('❌ ปฏิเสธการเข้าถึง: ระบบอนุญาตเฉพาะอีเมล @tu.ac.th หรือ @dome.tu.ac.th เท่านั้น');
+                }
             }
         });
     </script>
