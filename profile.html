@@ -6,7 +6,6 @@
     <title>โปรไฟล์ - TU Aroi</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- เพิ่ม Supabase SDK เพื่อให้ script.js ใช้งาน supabaseClient ได้ -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -19,57 +18,134 @@
             <a href="map.html">แผนที่วิทยาเขต</a>
         </nav>
         <div class="header-right">
-            <button id="darkModeToggle" class="theme-toggle-btn" title="สลับโหมดสว่าง/มืด" style="background: none; border: none; cursor: pointer; color: inherit; font-size: 16px; margin-right: 10px;">
+            <div class="search-box">
+                <i class="fa-solid fa-magnifying-glass" style="font-size: 13px; color: var(--text-muted);"></i>
+                <input type="text" placeholder="ค้นหา..." style="font-size: 13px; width: 100px;">
+            </div>
+            <button id="darkModeToggle" class="theme-toggle-btn" title="สลับโหมดสว่าง/มืด">
                 <i class="fa-solid fa-moon"></i>
             </button>
-            <a href="profile.html"><i class="fa-regular fa-user icon-btn"></i></a>
-            <a href="login.html" class="btn-primary-red" style="padding: 6px 14px; font-size: 13px;">เข้าสู่ระบบ</a>
+            <a href="profile.html"><i class="fa-regular fa-user icon-btn" style="color: var(--primary-red);"></i></a>
         </div>
     </header>
 
-    <div class="container">
-        <aside class="sidebar">
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
-                <div id="profile-avatar" class="avatar" style="width: 44px; height: 44px; border-radius: 50%; background: #e63946; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px;">U</div>
-                <div>
-                    <h2 id="profile-name" style="margin: 0; font-size: 16px;">นักศึกษามหาลัย</h2>
-                    <p id="profile-email" class="sub-text" style="margin: 0; font-size: 12px; color: #666;">student@tu.ac.th</p>
+    <div class="container" style="gap: 30px; align-items: flex-start;">
+        
+        <aside class="sidebar" style="width: 300px; display: flex; flex-direction: column; gap: 20px;">
+            <!-- ข้อมูลโปรไฟล์ -->
+            <div style="text-align: center; padding-bottom: 20px; border-bottom: 1px solid var(--border-color);">
+                <div id="profile-avatar" class="avatar" style="width: 80px; height: 80px; border-radius: 50%; background: #e63946; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 32px; margin: 0 auto 15px; overflow: hidden;">
+                    <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">
+                </div>
+                <h2 id="profile-name" style="margin: 0 0 4px 0; font-size: 18px; color: var(--text-main);">โยโย่ โกโก้</h2>
+                <p id="profile-faculty" class="sub-text" style="margin: 0; font-size: 13px; color: var(--text-muted);">วิศวกรรมศาสตร์, รุ่นปี 36</p>
+            </div>
+
+            <!-- ปุ่มแก้ไขโปรไฟล์ -->
+            <button id="edit-profile-btn" class="btn-primary-red" style="width: 100%;">แก้ไขโปรไฟล์</button>
+
+            <!-- สถิติ (กิจกรรม / รีวิว) -->
+            <div style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 15px;">
+                <div style="font-size: 13px; font-weight: bold; color: var(--text-main); margin-bottom: 10px;">กิจกรรม</div>
+                <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--text-muted); margin-bottom: 6px;">
+                    <span>สถานที่ที่บันทึกไว้</span>
+                    <span style="font-weight: bold; color: var(--text-main);">12</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--text-muted);">
+                    <span>รีวิว</span>
+                    <span style="font-weight: bold; color: var(--text-main);">8</span>
                 </div>
             </div>
-            <button id="edit-profile-btn" class="btn-primary-red" style="width: 100%;">แก้ไขโปรไฟล์</button>
-            <a href="login.html" style="display: block; text-align: center; margin-top: 15px; font-size: 13px; color: #dc3545;">ออกจากระบบ</a>
         </aside>
 
-        <main class="content">
-            <h3>🔖 ร้านอาหารที่บันทึกไว้</h3>
-            <div id="saved-cards-grid" class="card-grid" style="margin-top: 15px;">
-                <div class="card">
-                    <img src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=500" alt="Cafe" style="width:100%; height:150px; object-fit:cover;">
-                    <div class="card-info">
-                        <h3>The Quad Coffee</h3>
-                        <p class="desc">คาเฟ่และพื้นที่อ่านหนังสือ</p>
+        <!-- Content ขวา: ร้านที่บันทึกไว้ + รีวิวที่ผ่านมา -->
+        <main class="content" style="flex: 1; display: flex; flex-direction: column; gap: 30px;">
+            
+            <!-- ส่วนที่ 1: สถานที่ที่บันทึกไว้ -->
+            <section>
+                <h3 style="font-size: 16px; color: var(--text-main); margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-bookmark" style="color: var(--primary-red); font-size: 14px;"></i> สถานที่ที่บันทึกไว้
+                </h3>
+                <div id="saved-cards-grid" class="card-grid" style="grid-template-columns: repeat(2, 1fr); gap: 20px;">
+                    <!-- การ์ดที่ 1 -->
+                    <div class="card" style="position: relative;">
+                        <button class="bookmark-btn" style="position: absolute; top: 10px; right: 10px; z-index: 10; background: rgba(255,255,255,0.85); border: none; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                            <i class="fa-solid fa-bookmark" style="color: #e63946; font-size: 14px;"></i>
+                        </button>
+                        <div class="card-image" style="height: 140px;">
+                            <img src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=500" alt="Cafe">
+                        </div>
+                        <div class="card-info" style="padding: 12px;">
+                            <h3 style="font-size: 15px; margin-bottom: 4px;">ค็อฟฟี่บุสกาลกลาง</h3>
+                            <p class="desc" style="font-size: 12px; margin-bottom: 10px;">☕ โค-เลิร์นนิ่งสเปซ</p>
+                            <div class="card-footer" style="font-size: 11px;">
+                                <span style="color: var(--text-muted);">ห่างออกไป 0.5 กม.</span>
+                                <span class="badge badge-discount" style="position: static; padding: 2px 6px; font-size: 10px;">ส่วนลด</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- การ์ดที่ 2 -->
+                    <div class="card" style="position: relative;">
+                        <button class="bookmark-btn" style="position: absolute; top: 10px; right: 10px; z-index: 10; background: rgba(255,255,255,0.85); border: none; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                            <i class="fa-solid fa-bookmark" style="color: #e63946; font-size: 14px;"></i>
+                        </button>
+                        <div class="card-image" style="height: 140px;">
+                            <img src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=500" alt="Restaurant">
+                        </div>
+                        <div class="card-info" style="padding: 12px;">
+                            <h3 style="font-size: 15px; margin-bottom: 4px;">โยโย่ โกโก้</h3>
+                            <p class="desc" style="font-size: 12px; margin-bottom: 10px;">🍲 อาหารและเครื่องดื่ม</p>
+                            <div class="card-footer" style="font-size: 11px;">
+                                <span style="color: var(--text-muted);">ห่างออกไป 1.2 กม.</span>
+                                <span class="badge" style="position: static; background: var(--accent-gold); color: #fff; padding: 2px 6px; font-size: 10px;">เมนูใหม่</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </section>
+
+            <!-- ส่วนที่ 2: รีวิวที่ผ่านมา -->
+            <section style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px var(--shadow-color);">
+                <h3 style="font-size: 16px; color: var(--text-main); margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-star" style="color: var(--accent-gold); font-size: 14px;"></i> รีวิวที่ผ่านมา
+                </h3>
+                <div class="review-item" style="padding: 12px 0; border-bottom: 1px solid var(--border-color);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span style="font-weight: bold; font-size: 13px; color: var(--text-main);">แคนบิด โรลเลอร์สเรสเตอร์รันต์</span>
+                        <span style="font-size: 11px; color: var(--text-muted);">22 ก.ค. 2024</span>
+                    </div>
+                    <div style="color: var(--accent-gold); font-size: 12px; margin-bottom: 6px;">⭐⭐⭐⭐⭐</div>
+                    <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5;">สถานที่ที่บรรยากาศดีมาก เหมาะกับการมาอ่านหนังสือตอนสอบมากๆ อาหารอร่อยราคาไม่แพง รสชาติถูกปาก มีมุมถ่ายรูปเยอะดีครับ</p>
+                </div>
+            </section>
+
         </main>
     </div>
 
     <!-- Modal Pop-up สำหรับแก้ไขโปรไฟล์ -->
     <div id="edit-profile-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000;">
-        <div style="background: #fff; padding: 24px; border-radius: 12px; width: 90%; max-width: 380px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
-            <h3 style="margin-top: 0; margin-bottom: 15px;">แก้ไขโปรไฟล์</h3>
+        <div style="background: var(--card-bg); color: var(--text-main); padding: 24px; border-radius: 12px; width: 90%; max-width: 380px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); border: 1px solid var(--border-color);">
+            <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: var(--primary-red);">แก้ไขโปรไฟล์</h3>
             <form id="edit-profile-form">
                 <div style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 6px; font-size: 13px; color: #333;">ชื่อแสดงผล</label>
-                    <input type="text" id="edit-fullname" style="width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; box-sizing: border-box;" required>
+                    <label style="display: block; margin-bottom: 6px; font-size: 13px; color: var(--text-muted);">ชื่อแสดงผล</label>
+                    <input type="text" id="edit-fullname" value="โยโย่ โกโก้" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-main); border-radius: 6px; font-size: 14px; box-sizing: border-box;" required>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 6px; font-size: 13px; color: var(--text-muted);">คณะ / สาขาวิชา</label>
+                    <input type="text" id="edit-faculty" value="วิศวกรรมศาสตร์, รุ่นปี 36" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-main); border-radius: 6px; font-size: 14px; box-sizing: border-box;">
                 </div>
                 <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                    <button type="button" id="close-profile-modal" style="padding: 8px 16px; border: none; background: #888; color: white; border-radius: 6px; cursor: pointer;">ยกเลิก</button>
-                    <button type="submit" style="padding: 8px 16px; border: none; background: #e63946; color: white; border-radius: 6px; cursor: pointer;">บันทึก</button>
+                    <button type="button" id="close-profile-modal" style="padding: 8px 16px; border: none; background: #888; color: white; border-radius: 6px; cursor: pointer; font-size: 13px;">ยกเลิก</button>
+                    <button type="submit" style="padding: 8px 16px; border: none; background: var(--primary-red); color: white; border-radius: 6px; cursor: pointer; font-size: 13px;">บันทึก</button>
                 </div>
             </form>
         </div>
     </div>
+
+   <footer class="footer-simple">
+        © 2026 TU Aroi (UniDirectory). Built for the academic community.
+    </footer>
 
     <script src="script.js"></script>
 </body>
