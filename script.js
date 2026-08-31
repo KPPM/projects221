@@ -282,7 +282,45 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ==========================================
-    // 7. ดึงข้อมูลและแสดงผลรีวิว (review.html)
+    // 7. จัดการข้อมูลโปรไฟล์ & Pop-up แก้ไข (profile.html)
+    // ==========================================
+    const editProfileBtn = document.getElementById('edit-profile-btn');
+    const editProfileModal = document.getElementById('edit-profile-modal');
+    const closeProfileModal = document.getElementById('close-profile-modal');
+    const editProfileForm = document.getElementById('edit-profile-form');
+    const profileNameEl = document.getElementById('profile-name');
+    const profileAvatarEl = document.getElementById('profile-avatar');
+    const editFullnameInput = document.getElementById('edit-fullname');
+
+    if (editProfileBtn && editProfileModal) {
+        editProfileBtn.addEventListener('click', () => {
+            if (profileNameEl && editFullnameInput) {
+                editFullnameInput.value = profileNameEl.textContent;
+            }
+            editProfileModal.style.setProperty('display', 'flex', 'important');
+        });
+    }
+
+    if (closeProfileModal && editProfileModal) {
+        closeProfileModal.addEventListener('click', () => {
+            editProfileModal.style.display = 'none';
+        });
+    }
+
+    if (editProfileForm) {
+        editProfileForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const newName = editFullnameInput.value.trim();
+            if (newName) {
+                if (profileNameEl) profileNameEl.textContent = newName;
+                if (profileAvatarEl) profileAvatarEl.textContent = newName.charAt(0).toUpperCase();
+                if (editProfileModal) editProfileModal.style.display = 'none';
+            }
+        });
+    }
+
+    // ==========================================
+    // 8. ดึงข้อมูลและแสดงผลรีวิว (review.html)
     // ==========================================
     const reviewsContentArea = document.getElementById('reviews-content-area');
     
@@ -344,7 +382,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadReviews();
 
     // ==========================================
-    // 8. ส่งฟอร์มรีวิว (เช็ก Login ก่อนส่ง)
+    // 9. ส่งฟอร์มรีวิว (เช็ก Login ก่อนส่ง)
     // ==========================================
     const reviewForm = document.getElementById('review-form');
     const fileInput = document.getElementById('review-photo');
