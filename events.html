@@ -3,9 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>กิจกรรมและโปรโมชั่น - TU Aroi</title>
+    <title>กิจกรรม - TU Aroi</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- โหลด Supabase SDK เพื่อรองรับการตรวจเช็ก Auth สลับปุ่ม Navbar -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <header class="navbar">
@@ -25,30 +28,26 @@
         </div>
     </header>
 
-    <div class="container">
-        <aside class="sidebar">
-            <h3>หมวดหมู่กิจกรรม</h3>
-            <div class="category-list" style="margin-top: 15px;">
-                <button class="cat-btn active"><i class="fa-solid fa-calendar"></i> ทั้งหมด</button>
-                <button class="cat-btn"><i class="fa-solid fa-utensils"></i> โปรโมชั่นร้านอาหาร</button>
-                <button class="cat-btn"><i class="fa-solid fa-music"></i> บันเทิง/เทศกาลอาหาร</button>
-            </div>
-        </aside>
+    <main class="container" style="flex-direction: column; gap: 20px; padding: 30px 20px;">
+        <h2 style="font-size: 22px; color: var(--text-main); margin-bottom: 10px;">🎉 กิจกรรมและโปรโมชันพิเศษ</h2>
+        <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">รวบรวมกิจกรรม ตลาดนัด และส่วนลดพิเศษสำหรับชาวธรรมศาสตร์</p>
 
-        <main class="content">
-            <h2>กิจกรรมและส่วนลดร้านอาหารรอบ มธ.</h2>
-            <div class="card-grid" style="margin-top: 20px;">
-                <div class="card">
-                    <img src="https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&q=80&w=500" alt="Event" style="width:100%; height:160px; object-fit:cover;">
-                    <div class="card-info">
-                        <h3>เดอะ เดลี่ แกรนด์ คาเฟ่ (The Study Hub)</h3>
-                        <p class="desc">📅 25 ต.ค. 2026 | 📍 ลานกิจกรรมเชียงราก</p>
-                        <a href="detail.html" class="btn-primary-red" style="display:block; width:100%; text-align:center; box-sizing:border-box;">ดูรายละเอียดร้านค้า</a>
-                    </div>
+        <!-- ตัวอย่างเนื้อหากิจกรรม -->
+        <div class="events-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; width: 100%;">
+            <div class="card" style="overflow: hidden;">
+                <img src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=500" alt="Event 1" style="width: 100%; height: 180px; object-fit: cover;">
+                <div style="padding: 15px;">
+                    <h3 style="font-size: 16px; margin: 5px 0; color: var(--text-main);">TU Food Fair 2026</h3>
+                    <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5;">รวมร้านเด็ดร้านดังรอบ มธ. รังสิต มาไว้ที่เดียว ณ ลานพญานาค</p>
                 </div>
             </div>
-        </main>
-    </div>
+        </div>
+    </main>
+
+    <footer class="footer-simple">
+        © 2026 TU Aroi . Built for the academic community.
+    </footer>
+
     <script src="script.js"></script>
 </body>
 </html>

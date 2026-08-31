@@ -61,7 +61,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ==========================================
-    // 3. ข้อมูล Mock Data สำรอง
+    // 3. ฟังก์ชันสลับปุ่ม เข้าสู่ระบบ / ออกจากระบบ บน Navbar
+    // ==========================================
+    async function checkGlobalAuthNavbar() {
+        if (!supabaseClient) return;
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            const loginBtns = document.querySelectorAll('.header-right a[href="login.html"], .header-right #global-logout-btn');
+            
+            loginBtns.forEach(btn => {
+                if (session && session.user) {
+                    btn.textContent = 'ออกจากระบบ';
+                    btn.href = '#';
+                    btn.id = 'global-logout-btn';
+                    btn.onclick = async (e) => {
+                        e.preventDefault();
+                        await supabaseClient.auth.signOut();
+                        window.location.href = 'login.html';
+                    };
+                }
+            });
+        } catch (err) {
+            console.log('Navbar Auth Check:', err);
+        }
+    }
+
+    checkGlobalAuthNavbar();
+
+    // ==========================================
+    // 4. ข้อมูล Mock Data สำรอง
     // ==========================================
     const mockPlaces = [
         {
@@ -97,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
 
     // ==========================================
-    // 4. ระบบ บันทึกร้านค้า (Bookmarks / Saved Places)
+    // 5. ระบบ บันทึกร้านค้า (Bookmarks / Saved Places)
     // ==========================================
     const getSavedPlaces = () => {
         return JSON.parse(localStorage.getItem('saved_places_ids')) || [];
@@ -115,7 +143,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return saved.includes(strId);
     };
 
-    // Helper ในการสร้าง Card HTML พร้อมปุ่มหัวใจเซฟร้าน
     function createCardHTML(place) {
         const savedPlaces = getSavedPlaces();
         const isSaved = savedPlaces.includes(String(place.id));
@@ -149,7 +176,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
     }
 
-    // Event Listener สำหรับกดปุ่มบันทึก (Bookmark)
     document.addEventListener('click', (e) => {
         const bookmarkBtn = e.target.closest('.bookmark-btn');
         if (bookmarkBtn) {
@@ -166,7 +192,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 icon.className = 'fa-regular fa-heart';
                 icon.style.color = '#666';
                 
-                // ถ้าอยู่ในหน้า "รายการที่บันทึก" แล้วกดเลิกบันทึก ให้ซ่อนการ์ดนั้นออกทันที
                 const savedContainer = document.getElementById('saved-cards-grid');
                 if (savedContainer) {
                     bookmarkBtn.closest('.card-link').remove();
@@ -179,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ==========================================
-    // 5. ตัวกรองและแสดงผลการ์ดร้านค้า (search.html / index.html)
+    // 6. ตัวกรองและแสดงผลการ์ดร้านค้า
     // ==========================================
     const filterOpen = document.getElementById('filter-open');
     const filterDistance = document.getElementById('filter-distance');
@@ -238,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ==========================================
-    // 6. แสดงผลร้านค้าในหน้า "รายการที่บันทึก" (profile.html หรือ saved.html)
+    // 7. แสดงผลร้านค้าในหน้า "รายการที่บันทึก" (profile.html)
     // ==========================================
     const savedCardsGrid = document.getElementById('saved-cards-grid');
     if (savedCardsGrid) {
@@ -262,7 +287,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Fallback ค้นหาจาก Mock Data
             if (savedPlacesData.length === 0) {
                 savedPlacesData = mockPlaces.filter(place => savedIds.includes(String(place.id)));
             }
@@ -282,45 +306,101 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ==========================================
-    // 7. จัดการข้อมูลโปรไฟล์ & Pop-up แก้ไข (profile.html)
+    // 8. จัดการข้อมูลโปรไฟล์ & ดึงอีเมลมาแสดงอัตโนมัติ
     // ==========================================
     const editProfileBtn = document.getElementById('edit-profile-btn');
-    const editProfileModal = document.getElementById('edit-profile-modal');
-    const closeProfileModal = document.getElementById('close-profile-modal');
     const editProfileForm = document.getElementById('edit-profile-form');
+    const logoutBtn = document.getElementById('logout-btn');
+    const unauthView = document.getElementById('unauthenticated-view');
+    const authView = document.getElementById('authenticated-view');
+    
     const profileNameEl = document.getElementById('profile-name');
     const profileAvatarEl = document.getElementById('profile-avatar');
+    const profileUsernameEl = document.getElementById('edit-username'); 
+    const profileFacultyEl = document.getElementById('edit-faculty');   
+    const profileEmailDisplay = document.getElementById('profile-email-display');
+
     const editFullnameInput = document.getElementById('edit-fullname');
+    const editUsernameInput = document.getElementById('edit-username');
+    const editFacultyInput = document.getElementById('edit-faculty');
 
-    if (editProfileBtn && editProfileModal) {
-        editProfileBtn.addEventListener('click', () => {
-            if (profileNameEl && editFullnameInput) {
-                editFullnameInput.value = profileNameEl.textContent;
+    // โหลดข้อมูลโปรไฟล์และอีเมลจาก Supabase Session
+    if (authView && unauthView && supabaseClient) {
+        supabaseClient.auth.getSession().then(({ data: { session } }) => {
+            if (!session || !session.user) {
+                unauthView.style.display = 'block';
+                authView.style.display = 'none';
+            } else {
+                unauthView.style.display = 'none';
+                authView.style.display = 'flex';
+
+                const user = session.user;
+                const name = user.user_metadata?.full_name || user.email.split('@')[0];
+                const email = user.email; // อีเมลจริงของผู้ใช้
+
+                const username = user.user_metadata?.username || email.split('@')[0];
+                const faculty = user.user_metadata?.faculty || '';
+
+                // นำค่าไปใส่ในฟอร์มและส่วนแสดงผล
+                if (editFullnameInput) editFullnameInput.value = name;
+                if (editUsernameInput) editUsernameInput.value = username;
+                if (editFacultyInput) editFacultyInput.value = faculty;
+                
+                if (profileEmailDisplay) {
+                    profileEmailDisplay.textContent = email; // แสดงอีเมลจริงทันที
+                }
+                
+                if (profileAvatarEl) {
+                    if (user.user_metadata?.avatar_url) {
+                        profileAvatarEl.innerHTML = `<img src="${user.user_metadata.avatar_url}" alt="Avatar" style="width:100%; height:100%; object-fit:cover;">`;
+                    } else {
+                        profileAvatarEl.textContent = name.charAt(0).toUpperCase();
+                    }
+                }
+
+                const savedPlaces = getSavedPlaces();
+                const savedCountEl = document.getElementById('saved-count');
+                if (savedCountEl) savedCountEl.textContent = savedPlaces.length;
             }
-            editProfileModal.style.setProperty('display', 'flex', 'important');
         });
     }
 
-    if (closeProfileModal && editProfileModal) {
-        closeProfileModal.addEventListener('click', () => {
-            editProfileModal.style.display = 'none';
-        });
-    }
-
-    if (editProfileForm) {
-        editProfileForm.addEventListener('submit', (e) => {
+    if (editProfileForm && supabaseClient) {
+        editProfileForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const newName = editFullnameInput.value.trim();
-            if (newName) {
-                if (profileNameEl) profileNameEl.textContent = newName;
-                if (profileAvatarEl) profileAvatarEl.textContent = newName.charAt(0).toUpperCase();
-                if (editProfileModal) editProfileModal.style.display = 'none';
+            const newName = editFullnameInput ? editFullnameInput.value.trim() : '';
+            const newUsername = editUsernameInput ? editUsernameInput.value.trim() : '';
+            const newFaculty = editFacultyInput ? editFacultyInput.value.trim() : '';
+
+            if (newName && profileAvatarEl) {
+                profileAvatarEl.textContent = newName.charAt(0).toUpperCase();
             }
+
+            try {
+                await supabaseClient.auth.updateUser({
+                    data: {
+                        full_name: newName,
+                        username: newUsername,
+                        faculty: newFaculty
+                    }
+                });
+                alert('บันทึกข้อมูลเรียบร้อยแล้ว!');
+            } catch (err) {
+                console.error('Update metadata error:', err);
+                alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+            }
+        });
+    }
+
+    if (logoutBtn && supabaseClient) {
+        logoutBtn.addEventListener('click', async () => {
+            await supabaseClient.auth.signOut();
+            window.location.reload();
         });
     }
 
     // ==========================================
-    // 8. ดึงข้อมูลและแสดงผลรีวิว (review.html)
+    // 9. ดึงข้อมูลและแสดงผลรีวิว (review.html / detail.html)
     // ==========================================
     const reviewsContentArea = document.getElementById('reviews-content-area');
     
@@ -382,7 +462,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadReviews();
 
     // ==========================================
-    // 9. ส่งฟอร์มรีวิว (เช็ก Login ก่อนส่ง)
+    // 10. ส่งฟอร์มรีวิว + อัปโหลดรูปภาพ
     // ==========================================
     const reviewForm = document.getElementById('review-form');
     const fileInput = document.getElementById('review-photo');

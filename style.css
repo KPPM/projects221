@@ -161,3 +161,152 @@ hr { border: none; border-top: 1px solid var(--border-color); margin: 20px 0; }
 .review-text { font-size: 14px; color: var(--text-muted); line-height: 1.6; }
 
 .footer-simple { text-align: center; padding: 30px; color: var(--text-muted); font-size: 12px; border-top: 1px solid var(--border-color); margin-top: 50px; }
+
+/* ==========================================
+   ส่วนของ Map UI (แผนที่วิทยาเขต)
+   ========================================== */
+.map-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+#map {
+    width: 100%;
+    height: 550px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color, #e0e0e0);
+    z-index: 1;
+    transition: cursor 0.2s;
+}
+
+/* แถบควบคุมแผนที่ด้านล่างขวา */
+.map-controls-group {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-end;
+}
+
+.map-control-btn {
+    background: var(--card-bg, #ffffff);
+    color: var(--text-main, #333333);
+    border: 1px solid var(--border-color, #cccccc);
+    padding: 10px 18px;
+    border-radius: 30px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.map-control-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+}
+
+/* ปุ่มสลับโหมดปักหมุด */
+.add-mode-btn.active {
+    background: #e63946 !important;
+    color: #ffffff !important;
+    border-color: #e63946 !important;
+    animation: pulse-border 1.5s infinite;
+}
+
+@keyframes pulse-border {
+    0% { box-shadow: 0 0 0 0 rgba(230, 57, 70, 0.5); }
+    70% { box-shadow: 0 0 0 10px rgba(230, 57, 70, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(230, 57, 70, 0); }
+}
+
+/* Banner แจ้งเตือนเมื่ออยู่ในโหมดปักหมุด */
+.pin-mode-banner {
+    display: none;
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background: rgba(230, 57, 70, 0.95);
+    color: white;
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    backdrop-filter: blur(4px);
+    pointer-events: none;
+}
+
+/* Form ปักหมุดร้านใหม่ใน Popup */
+.add-place-popup {
+    padding: 6px;
+    font-family: inherit;
+    min-width: 200px;
+}
+
+.add-place-popup h4 {
+    margin: 0 0 10px 0;
+    color: #e63946;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.add-place-popup label {
+    font-size: 11px;
+    color: #666;
+    display: block;
+    margin-bottom: 3px;
+}
+
+.add-place-popup input, .add-place-popup select {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 12px;
+    box-sizing: border-box;
+    outline: none;
+}
+
+.add-place-popup input:focus, .add-place-popup select:focus {
+    border-color: #e63946;
+}
+
+.add-place-popup-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.btn-pop-save {
+    flex: 2;
+    background: #e63946;
+    color: white;
+    border: none;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.btn-pop-cancel {
+    flex: 1;
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+}

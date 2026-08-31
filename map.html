@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- เพิ่ม Supabase Client SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
         .map-wrapper {
@@ -56,12 +58,13 @@
             <a href="events.html">กิจกรรม</a>
             <a href="map.html" class="active">แผนที่วิทยาเขต</a>
         </nav>
-        <div class="header-right">
+        <div class="header-right" id="header-auth-container">
             <button id="darkModeToggle" class="theme-toggle-btn" title="สลับโหมดสว่าง/มืด">
                 <i class="fa-solid fa-moon"></i>
             </button>
             <a href="profile.html"><i class="fa-regular fa-user icon-btn"></i></a>
-            <a href="login.html" class="btn-primary-red" style="padding: 6px 14px; font-size: 13px;">เข้าสู่ระบบ</a>
+            <!-- ปุ่มนี้จะถูกสลับเปลี่ยนสถานะด้วย Script ด้านล่างอัตโนมัติ -->
+            <a href="login.html" id="auth-action-btn" class="btn-primary-red" style="padding: 6px 14px; font-size: 13px;">เข้าสู่ระบบ</a>
         </div>
     </header>
 
@@ -178,6 +181,30 @@
                 alert("เบราว์เซอร์นี้ไม่รองรับระบบ GPS");
             }
         }
+
+        // ตรวจสอบสถานะการเข้าสู่ระบบเพื่อเปลี่ยนปุ่ม Navbar ด้านขวา
+        window.addEventListener('load', async () => {
+            const SUPABASE_URL = 'https://lcmqqovjgdkcbwyxxfwa.supabase.co';
+            const SUPABASE_ANON_KEY = 'sb_publishable_ljqn7Kr_anpQJ2k7PvHSig_zRSS5o-8';
+            const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            const authBtn = document.getElementById('auth-action-btn');
+
+            if (session && session.user) {
+                authBtn.textContent = 'ออกจากระบบ';
+                authBtn.href = '#';
+                authBtn.style.background = 'transparent';
+                authBtn.style.color = '#dc3545';
+                authBtn.style.border = '1px solid #dc3545';
+
+                authBtn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    await supabaseClient.auth.signOut();
+                    window.location.reload();
+                });
+            }
+        });
     </script>
     <script src="script.js"></script>
 </body>
