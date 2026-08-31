@@ -3,209 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>แผนที่ร้านอร่อย - TU Aroi</title>
-    <link rel="stylesheet" href="style.css">
+    <title>แผนที่วิทยาเขต - ค้นหาร้านค้าและคาเฟ่</title>
+    
+    <!-- Google Fonts & Font Awesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <!-- เพิ่ม Supabase Client SDK -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-    <style>
-        .map-wrapper {
-            position: relative;
-            width: 100%;
-            height: 520px;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 12px var(--shadow-color);
-            border: 1px solid var(--border-color);
-        }
-        #map { width: 100%; height: 100%; z-index: 1; }
-        .map-controls {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            z-index: 1000;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .control-btn {
-            background: var(--card-bg);
-            color: var(--text-main);
-            border: 1px solid var(--border-color);
-            padding: 10px 16px;
-            border-radius: 30px;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 2px 8px var(--shadow-color);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.2s;
-            font-size: 13px;
-        }
-        .control-btn:hover { background: var(--bg-color); transform: translateY(-2px); }
-        .control-btn.active { background: var(--primary-red); color: #fff; border-color: var(--primary-red); }
-    </style>
+    
+    <!-- Leaflet CSS (สำหรับแสดงผลแผนที่) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <!-- ไฟล์ CSS หลักของคุณ -->
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <header class="navbar">
+
+   <header class="navbar">
         <div class="logo">TU Aroi</div>
         <nav class="nav-links">
             <a href="search.html">ค้นพบ</a>
             <a href="profile.html">บันทึกไว้</a>
-            <a href="events.html">กิจกรรม</a>
-            <a href="map.html" class="active">แผนที่วิทยาเขต</a>
+            <a href="events.html" class="active">กิจกรรม</a>
+            <a href="map.html">แผนที่วิทยาเขต</a>
         </nav>
-        <div class="header-right" id="header-auth-container">
+        <div class="header-right">
             <button id="darkModeToggle" class="theme-toggle-btn" title="สลับโหมดสว่าง/มืด">
                 <i class="fa-solid fa-moon"></i>
             </button>
             <a href="profile.html"><i class="fa-regular fa-user icon-btn"></i></a>
-            <!-- ปุ่มนี้จะถูกสลับเปลี่ยนสถานะด้วย Script ด้านล่างอัตโนมัติ -->
-            <a href="login.html" id="auth-action-btn" class="btn-primary-red" style="padding: 6px 14px; font-size: 13px;">เข้าสู่ระบบ</a>
         </div>
     </header>
-
+    <!-- Content Container สำหรับแผนที่ -->
     <div class="container" style="flex-direction: column;">
         <div class="content-header">
             <div>
-                <h2>แผนที่พิกัดร้านอร่อย (มธ. รังสิต)</h2>
-                <p class="subtitle" style="color: var(--text-muted); font-size: 13px;">คลิก "โหมดปักหมุด" เพื่อเพิ่มร้านค้าเด็ดๆ บนแผนที่ด้วยตัวเอง</p>
+                <h2>แผนที่ร้านค้าภายในวิทยาเขต</h2>
+                <p class="sub-text" style="margin-bottom: 0;">ค้นหาพิกัดร้านอาหาร คาเฟ่ และพื้นที่อ่านหนังสือ หรือเพิ่มร้านค้าใหม่บนแผนที่ได้ทันที</p>
             </div>
         </div>
 
+        <!-- Map Component Wrapper -->
         <div class="map-wrapper">
+            <!-- แบนเนอร์แจ้งเตือนเมื่ออยู่ในโหมดปักหมุด (ควบคุมด้วย JavaScript) -->
+            <div class="pin-mode-banner">
+                <i class="fa-solid fa-location-dot"></i> กรุณาคลิกบนแผนที่เพื่อเลือกตำแหน่งร้านค้าใหม่
+            </div>
+
+            <!-- ส่วนแสดงแผนที่ Leaflet -->
             <div id="map"></div>
-            <div class="map-controls">
-                <button id="addPinBtn" class="control-btn" onclick="togglePinMode()">
-                    <i class="fa-solid fa-map-pin" style="color: var(--primary-red);"></i> <span id="pinBtnText">โหมดปักหมุด</span>
+
+            <!-- กลุ่มปุ่มควบคุมแผนที่มุมขวาล่าง (สร้างอัตโนมัติหรือรองรับผ่าน CSS) -->
+            <div class="map-controls-group">
+                <button class="map-control-btn add-mode-btn">
+                    <i class="fa-solid fa-plus"></i> เพิ่มร้านค้าบนแผนที่
                 </button>
-                <button class="control-btn" onclick="getCurrentLocation()">
-                    <i class="fa-solid fa-crosshairs" style="color: #007bff;"></i> ตำแหน่งของฉัน
+                <button class="map-control-btn">
+                    <i class="fa-solid fa-crosshairs"></i> ตำแหน่งของฉัน
                 </button>
             </div>
         </div>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        let map, userMarker;
-        let isPinMode = false;
-        const customMarkers = [];
+    <!-- Footer ง่ายๆ -->
+    <footer class="footer-simple">
+        &copy; 2026 TU Aroi. All rights reserved.
+    </footer>
 
-        const tuCenter = [14.0722, 100.6025];
-        map = L.map('map').setView(tuCenter, 16);
+    <!-- Supabase CDN (ถ้าใช้งานร่วมกับระบบฐานข้อมูล) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-
-        const defaultPlaces = [
-            { name: "ศูนย์อาหาร SC (Green Canteen)", coords: [14.0738, 100.6001], desc: "ศูนย์อาหารหลักใกล้อาคารเรียนรวม SC" },
-            { name: "ตึกบร.1 (บรรยายรวม 1)", coords: [14.0722, 100.6025], desc: "ตึกเรียนรวมฝั่งสังคมศาสตร์" },
-            { name: "หอสมุดป๋วย อึ๊งภากรณ์", coords: [14.0708, 100.6030], desc: "พื้นที่อ่านหนังสือและร้านกาแฟ" }
-        ];
-
-        defaultPlaces.forEach(place => {
-            const popupContent = `
-                <div style="padding: 2px;">
-                    <b style="color: #a80018; font-size: 14px;">${place.name}</b><br>
-                    <span style="font-size: 12px; color: #555;">${place.desc}</span>
-                </div>
-            `;
-            L.marker(place.coords).addTo(map).bindPopup(popupContent);
-        });
-
-        function togglePinMode() {
-            isPinMode = !isPinMode;
-            const btn = document.getElementById('addPinBtn');
-            const btnText = document.getElementById('pinBtnText');
-
-            if (isPinMode) {
-                btn.classList.add('active');
-                btnText.innerText = "กำลังอยู่ในโหมดปักหมุด (คลิกบนแผนที่)";
-                map.getContainer().style.cursor = 'crosshair';
-            } else {
-                btn.classList.remove('active');
-                btnText.innerText = "โหมดปักหมุด";
-                map.getContainer().style.cursor = '';
-            }
-        }
-
-        map.on('click', function(e) {
-            if (!isPinMode) return;
-            const name = prompt("ระบุชื่อร้านหรือสถานที่ต้องการปักหมุด:");
-            if (!name) return;
-            const desc = prompt("ระบุเมนูแนะนำ/คำอธิบายเพิ่มเติม:") || "";
-
-            const newMarker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map);
-            const popupContent = `
-                <div style="padding: 2px;">
-                    <b style="color: #a80018; font-size: 14px;">📍 ${name}</b><br>
-                    <span style="font-size: 12px; color: #555;">${desc}</span><br><br>
-                    <button onclick="removeMarker(${customMarkers.length})" style="background: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">ลบหมุดนี้</button>
-                </div>
-            `;
-
-            newMarker.bindPopup(popupContent).openPopup();
-            customMarkers.push(newMarker);
-            togglePinMode();
-        });
-
-        function removeMarker(index) {
-            if (customMarkers[index]) {
-                map.removeLayer(customMarkers[index]);
-            }
-        }
-
-        function getCurrentLocation() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        const userCoords = [position.coords.latitude, position.coords.longitude];
-                        if (userMarker) {
-                            userMarker.setLatLng(userCoords);
-                        } else {
-                            userMarker = L.circleMarker(userCoords, {
-                                color: '#007bff', fillColor: '#007bff', fillOpacity: 0.8, radius: 10
-                            }).addTo(map);
-                        }
-                        userMarker.bindPopup("<b>คุณอยู่ที่นี่</b>").openPopup();
-                        map.setView(userCoords, 17);
-                    },
-                    () => alert("กรุณากดอนุญาตสิทธิ์ Location บนเบราว์เซอร์")
-                );
-            } else {
-                alert("เบราว์เซอร์นี้ไม่รองรับระบบ GPS");
-            }
-        }
-
-        // ตรวจสอบสถานะการเข้าสู่ระบบเพื่อเปลี่ยนปุ่ม Navbar ด้านขวา
-        window.addEventListener('load', async () => {
-            const SUPABASE_URL = 'https://lcmqqovjgdkcbwyxxfwa.supabase.co';
-            const SUPABASE_ANON_KEY = 'sb_publishable_ljqn7Kr_anpQJ2k7PvHSig_zRSS5o-8';
-            const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            const authBtn = document.getElementById('auth-action-btn');
-
-            if (session && session.user) {
-                authBtn.textContent = 'ออกจากระบบ';
-                authBtn.href = '#';
-                authBtn.style.background = 'transparent';
-                authBtn.style.color = '#dc3545';
-                authBtn.style.border = '1px solid #dc3545';
-
-                authBtn.addEventListener('click', async (e) => {
-                    e.preventDefault();
-                    await supabaseClient.auth.signOut();
-                    window.location.reload();
-                });
-            }
-        });
-    </script>
+    <!-- Leaflet JS (สำหรับประมวลผลแผนที่) -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- ไฟล์ JavaScript หลักของคุณ -->
     <script src="script.js"></script>
 </body>
 </html>

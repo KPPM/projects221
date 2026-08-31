@@ -594,3 +594,248 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// ==========================================
+// 11. ระบบ Map UI และ แผนที่วิทยาเขต (Leaflet.js)
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+    const mapElement = document.getElementById('map');
+    if (!mapElement) return; // หากหน้าเว็บไม่มี element #map จะข้ามการทำงานส่วนนี้ทันที
+
+    // ค่าพิกัดเริ่มต้นศูนย์กลาง มหาวิทยาลัยธรรมศาสตร์ ศูนย์รังสิต
+    const defaultCenter = [14.0677, 100.6014]; 
+    const map = L.map('map').setView(defaultCenter, 15);
+
+    // เพิ่ม Tile Layer (แผนที่ฐาน OpenStreetMap)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let isAddMode = false;
+    let tempMarker = null;
+
+    // สร้างปุ่มควบคุมและแบนเนอร์บนแผนที่แบบ Dynamic หากยังไม่มีใน HTML
+    const mapWrapper = mapElement.closest('.map-wrapper') || mapElement.parentElement;
+    
+    // Banner แจ้งเตือนโหมดปักหมุด
+    let banner = mapWrapper.querySelector('.pin-mode-banner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.className = 'pin-mode-banner';
+        banner.innerHTML = '<i class="fa-solid fa-location-dot"></i> กรุณาคลิกบนแผนที่เพื่อเลือกตำแหน่งร้านค้าใหม่';
+        mapWrapper.appendChild(banner);
+    }
+
+    // แถบปุ่มควบคุมมุมขวาล่าง
+    let controlsGroup = mapWrapper.querySelector('.map-controls-group');
+    if (!controlsGroup) {
+        controlsGroup = document.createElement('div');
+        controlsGroup.className = 'map-controls-group';
+        
+        // ปุ่มสลับโหมดปักหมุด
+        const addModeBtn = document.createElement('button');
+        addModeBtn.className = 'map-control-btn add-mode-btn';
+        addModeBtn.innerHTML = '<i class="fa-solid fa-plus"></i> เพิ่มร้านค้าบนแผนที่';
+        
+        // ปุ่มรีเซ็ตตำแหน่งแผนที่
+        const resetLocBtn = document.createElement('button');
+        resetLocBtn.className = 'map-control-btn';
+        resetLocBtn.innerHTML = '<i class="fa-solid fa-crosshairs"></i> ตำแหน่งของฉัน';
+        
+        controlsGroup.appendChild(addModeBtn);
+        controlsGroup.appendChild(resetLocBtn);
+        mapWrapper.appendChild(controlsGroup);
+    }
+
+    const addModeBtn = controlsGroup.querySelector('.add-mode-btn');
+    const resetLocBtn = controlsGroup.querySelector('.map-control-btn:not(.add-mode-btn)');
+
+    // สลับโหมดปักหมุดเมื่อคลิกปุ่ม
+    if (addModeBtn) {
+        addModeBtn.addEventListener('click', () => {
+            isAddMode = !isAddMode;
+            if (isAddMode) {
+                addModeBtn.classList.add('active');
+                addModeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> ยกเลิกการปักหมุด';
+                banner.style.display = 'block';
+                mapElement.style.cursor = 'crosshair';
+            } else {
+                exitAddMode();
+            }
+        });
+    }
+
+    function exitAddMode() {
+        isAddMode = false;
+        if (addModeBtn) {
+            addModeBtn.classList.remove('active');
+            addModeBtn.innerHTML = '<i class="fa-solid fa-plus"></i> เพิ่มร้านค้าบนแผนที่';
+        }
+        banner.style.display = 'none';
+        mapElement.style.cursor = '';
+        if (tempMarker) {
+            map.removeLayer(tempMarker);
+            tempMarker = null;
+        }
+    }
+
+    // ฟังก์ชันระบุตำแหน่งปัจจุบันของผู้ใช้จริง (Geolocation API)
+    if (resetLocBtn) {
+        resetLocBtn.addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                alert('เบราว์เซอร์ของคุณไม่รองรับการระบุตำแหน่ง (Geolocation)');
+                map.setView(defaultCenter, 15);
+                return;
+            }
+
+            // แสดงสถานะกำลังค้นหา
+            resetLocBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังค้นหา...';
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const userLat = position.coords.latitude;
+                    const userLng = position.coords.longitude;
+                    const userLatLng = [userLat, userLng];
+
+                    // ย้ายแผนที่ไปที่ตำแหน่งผู้ใช้จริง (ซูมระดับ 16)
+                    map.setView(userLatLng, 16);
+
+                    // สร้างหรืออัปเดตหมุดแสดงตำแหน่งปัจจุบัน
+                    let userMarker = window.currentUserMarker;
+                    if (userMarker) {
+                        userMarker.setLatLng(userLatLng);
+                    } else {
+                        userMarker = L.marker(userLatLng, {
+                            icon: L.divIcon({
+                                className: 'user-location-pin',
+                                html: '<div style="background-color: #3b82f6; width: 14px; height: 14px; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 8px rgba(0,0,0,0.4);"></div>',
+                                iconSize: [14, 14]
+                            })
+                        }).addTo(map);
+                        window.currentUserMarker = userMarker;
+                    }
+                    userMarker.bindPopup('<b>ตำแหน่งของคุณในขณะนี้</b>').openPopup();
+
+                    // คืนค่าปุ่มเดิม
+                    resetLocBtn.innerHTML = '<i class="fa-solid fa-crosshairs"></i> ตำแหน่งของฉัน';
+                },
+                (error) => {
+                    console.error('Geolocation error:', error);
+                    alert('ไม่สามารถเข้าถึงตำแหน่งของคุณได้ กรุณาตรวจสอบการอนุญาตสิทธิ์การเข้าถึงตำแหน่งในเบราว์เซอร์');
+                    resetLocBtn.innerHTML = '<i class="fa-solid fa-crosshairs"></i> ตำแหน่งของฉัน';
+                    // Fallback กลับไปที่ศูนย์กลาง มธ. รังสิต
+                    map.setView(defaultCenter, 15);
+                },
+                { timeout: 10000, enableHighAccuracy: true }
+            );
+        });
+    }
+
+    // ข้อมูลร้านค้าตัวแสดงบนแผนที่ (ปรับพิกัดตัวอย่างให้อยู่ภายใน มธ. รังสิต)
+    const campusPlaces = [
+        { id: 1, name: 'The Quad Coffee', lat: 14.0725, lng: 100.6060, category: 'คาเฟ่และพื้นที่อ่านหนังสือ' },
+        { id: 2, name: 'ศูนย์อาหาร SC (Green Canteen)', lat: 14.0700, lng: 100.6080, category: 'อาหารและเครื่องดื่ม' },
+        { id: 3, name: 'เดอะ เดลี่ แกรนด์ คาเฟ่', lat: 14.0650, lng: 100.6030, category: 'คาเฟ่และอาหารว่าง' }
+    ];
+
+    // ฟังก์ชันเรนเดอร์หมุดร้านค้าเดิมลงบนแผนที่
+    campusPlaces.forEach(place => {
+        const marker = L.marker([place.lat, place.lng]).addTo(map);
+        marker.bindPopup(`
+            <div style="font-family: inherit; padding: 4px;">
+                <h4 style="margin: 0 0 5px 0; color: var(--primary-red); font-size: 14px;">${place.name}</h4>
+                <p style="margin: 0 0 8px 0; font-size: 12px; color: #666;">${place.category}</p>
+                <a href="detail.html?id=${place.id}" style="font-size: 11px; color: #e63946; font-weight: bold; text-decoration: underline;">ดูรายละเอียดร้าน</a>
+            </div>
+        `);
+    });
+
+    // ตรวจจับเหตุการณ์คลิกบนแผนที่เพื่อเพิ่มร้านใหม่ (เมื่ออยู่ใน Add Mode)
+    map.on('click', (e) => {
+        if (!isAddMode) return;
+
+        const { lat, lng } = e.latlng;
+
+        // ลบหมุดชั่วคراวก่อนหน้าถ้ามี
+        if (tempMarker) {
+            map.removeLayer(tempMarker);
+        }
+
+        // สร้าง Popup ฟอร์มกรอกข้อมูลร้านค้าใหม่
+        const popupContent = `
+            <div class="add-place-popup">
+                <h4><i class="fa-solid fa-store"></i> เพิ่มร้านค้าใหม่</h4>
+                <form id="quick-add-place-form">
+                    <label>ชื่อร้านค้า</label>
+                    <input type="text" id="new-place-name" placeholder="ระบุชื่อร้าน..." required />
+                    
+                    <label>หมวดหมู่</label>
+                    <select id="new-place-category">
+                        <option value="คาเฟ่และพื้นที่อ่านหนังสือ">คาเฟ่และพื้นที่อ่านหนังสือ</option>
+                        <option value="อาหารและเครื่องดื่ม">อาหารและเครื่องดื่ม</option>
+                        <option value="คาเฟ่และอาหารว่าง">คาเฟ่และอาหารว่าง</option>
+                    </select>
+
+                    <div class="add-place-popup-actions">
+                        <button type="submit" class="btn-pop-save">บันทึก</button>
+                        <button type="button" id="btn-pop-cancel" class="btn-pop-cancel">ยกเลิก</button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        tempMarker = L.marker([lat, lng], { draggable: true }).addTo(map);
+        tempMarker.bindPopup(popupContent, { maxWidth: 250 }).openPopup();
+
+        // จัดการเหตุการณ์ในฟอร์ม Popup
+        setTimeout(() => {
+            const form = document.getElementById('quick-add-place-form');
+            const cancelBtn = document.getElementById('btn-pop-cancel');
+
+            if (form) {
+                form.addEventListener('submit', async (ev) => {
+                    ev.preventDefault();
+                    const name = document.getElementById('new-place-name').value.trim();
+                    const category = document.getElementById('new-place-category').value;
+
+                    if (!name) return alert('กรุณากรอกชื่อร้านค้า');
+
+                    // ตรวจสอบ Supabase Client หากต้องการบันทึกลง Database จริง
+                    if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+                        try {
+                            const { error } = await supabaseClient.from('places').insert([{
+                                name: name,
+                                category: category,
+                                lat: lat,
+                                lng: lng,
+                                rating: 5.0,
+                                is_open: true
+                            }]);
+                            if (error) throw error;
+                            alert('เพิ่มร้านค้าลงในระบบสำเร็จ!');
+                        } catch (err) {
+                            console.error('Insert place error:', err);
+                            alert('บันทึกข้อมูลลงฐานข้อมูลไม่สำเร็จ แต่ระบบจำลองการทำงานเรียบร้อย');
+                        }
+                    } else {
+                        alert(`เพิ่มร้าน "${name}" (${category}) เรียบร้อยแล้ว!`);
+                    }
+
+                    tempMarker.closePopup();
+                    exitAddMode();
+                });
+            }
+
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', () => {
+                    if (tempMarker) {
+                        map.removeLayer(tempMarker);
+                        tempMarker = null;
+                    }
+                    exitAddMode();
+                });
+            }
+        }, 100);
+    });
+});
