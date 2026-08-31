@@ -6,6 +6,8 @@
     <title>โปรไฟล์ - TU Aroi</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- เพิ่ม Supabase SDK เพื่อให้ script.js ใช้งาน supabaseClient ได้ -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <header class="navbar">
@@ -17,6 +19,9 @@
             <a href="map.html">แผนที่วิทยาเขต</a>
         </nav>
         <div class="header-right">
+            <button id="darkModeToggle" class="theme-toggle-btn" title="สลับโหมดสว่าง/มืด" style="background: none; border: none; cursor: pointer; color: inherit; font-size: 16px; margin-right: 10px;">
+                <i class="fa-solid fa-moon"></i>
+            </button>
             <a href="profile.html"><i class="fa-regular fa-user icon-btn"></i></a>
             <a href="login.html" class="btn-primary-red" style="padding: 6px 14px; font-size: 13px;">เข้าสู่ระบบ</a>
         </div>
@@ -24,15 +29,20 @@
 
     <div class="container">
         <aside class="sidebar">
-            <h2>นักศึกษามหาลัย</h2>
-            <p class="sub-text">นักรีวิวประจำ TU Aroi</p>
-            <button class="btn-primary-red" style="width: 100%;">แก้ไขโปรไฟล์</button>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
+                <div id="profile-avatar" class="avatar" style="width: 44px; height: 44px; border-radius: 50%; background: #e63946; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px;">U</div>
+                <div>
+                    <h2 id="profile-name" style="margin: 0; font-size: 16px;">นักศึกษามหาลัย</h2>
+                    <p id="profile-email" class="sub-text" style="margin: 0; font-size: 12px; color: #666;">student@tu.ac.th</p>
+                </div>
+            </div>
+            <button id="edit-profile-btn" class="btn-primary-red" style="width: 100%;">แก้ไขโปรไฟล์</button>
             <a href="login.html" style="display: block; text-align: center; margin-top: 15px; font-size: 13px; color: #dc3545;">ออกจากระบบ</a>
         </aside>
 
         <main class="content">
             <h3>🔖 ร้านอาหารที่บันทึกไว้</h3>
-            <div class="card-grid" style="margin-top: 15px;">
+            <div id="saved-cards-grid" class="card-grid" style="margin-top: 15px;">
                 <div class="card">
                     <img src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=500" alt="Cafe" style="width:100%; height:150px; object-fit:cover;">
                     <div class="card-info">
@@ -43,6 +53,24 @@
             </div>
         </main>
     </div>
+
+    <!-- Modal Pop-up สำหรับแก้ไขโปรไฟล์ -->
+    <div id="edit-profile-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000;">
+        <div style="background: #fff; padding: 24px; border-radius: 12px; width: 90%; max-width: 380px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+            <h3 style="margin-top: 0; margin-bottom: 15px;">แก้ไขโปรไฟล์</h3>
+            <form id="edit-profile-form">
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 6px; font-size: 13px; color: #333;">ชื่อแสดงผล</label>
+                    <input type="text" id="edit-fullname" style="width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; box-sizing: border-box;" required>
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button type="button" id="close-profile-modal" style="padding: 8px 16px; border: none; background: #888; color: white; border-radius: 6px; cursor: pointer;">ยกเลิก</button>
+                    <button type="submit" style="padding: 8px 16px; border: none; background: #e63946; color: white; border-radius: 6px; cursor: pointer;">บันทึก</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>

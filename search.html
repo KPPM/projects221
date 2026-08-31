@@ -6,6 +6,7 @@
     <title>ค้นหาร้านอร่อย - TU Aroi</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <header class="navbar">
@@ -21,6 +22,9 @@
                 <i class="fa-solid fa-magnifying-glass"></i>
                 <input type="text" placeholder="ค้นหาร้านอร่อย...">
             </div>
+            <button id="darkModeToggle" class="theme-toggle-btn" title="สลับโหมดสว่าง/มืด">
+                <i class="fa-solid fa-moon"></i>
+            </button>
             <i class="fa-regular fa-bell icon-btn"></i>
             <a href="profile.html"><i class="fa-regular fa-user icon-btn"></i></a>
             <a href="login.html" class="btn-primary-red" style="padding: 6px 14px; font-size: 13px;">เข้าสู่ระบบ</a>
@@ -40,9 +44,8 @@
             </div>
             <hr>
             <h4>ตัวกรองด่วน</h4>
-            <!-- เพิ่ม ID สำหรับผูกกับ JS API -->
             <label><input type="checkbox" id="filter-open"> เปิดอยู่</label>
-            <label><input type="checkbox" id="filter-distance" checked> ระยะทาง &lt; 1 กม.</label>
+            <label><input type="checkbox" id="filter-distance"> ระยะทาง &lt; 1 กม.</label>
             <label><input type="checkbox" id="filter-rating"> 4 ดาวขึ้นไป</label>
             <hr>
             <h4>ช่วงราคา</h4>
@@ -58,33 +61,19 @@
             <div class="content-header">
                 <div>
                     <h2>ค้นหาร้านอร่อย</h2>
-                    <p class="subtitle">แสดงร้านค้าและสถานที่รอบ มธ. รังสิต</p>
+                    <p class="subtitle" style="color: var(--text-muted); font-size: 13px;">แสดงร้านค้าและสถานที่รอบ มธ. รังสิต</p>
                 </div>
                 <div class="sort-dropdown">
                     <label>เรียงโดย:</label>
-                    <select><option>แนะนำ</option></select>
+                    <select style="background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border-color); padding: 5px 10px; border-radius: 6px;">
+                        <option>แนะนำ</option>
+                    </select>
                 </div>
             </div>
 
-            <div class="card-grid">
-                <a href="detail.html" class="card-link">
-                    <div class="card">
-                        <div class="card-image">
-                            <img src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=500" alt="The Quad Coffee">
-                            <span class="badge badge-rating">★ 4.8</span>
-                            <span class="badge badge-discount">ส่วนลดนักศึกษา 15%</span>
-                        </div>
-                        <div class="card-info">
-                            <h3>The Quad Coffee</h3>
-                            <p class="desc">คาเฟ่และพื้นที่อ่านหนังสือ</p>
-                            <div class="card-footer">
-                                <span>📍 ใกล้ตึก SC 0.2 กม.</span>
-                                <span class="price">$$</span>
-                            </div>
-                        </div>
-                    </div>
-                </a>
-            </div>
+            <!-- การ์ดร้านค้าจะถูกเรนเดอร์ลงใน div นี้โดย script.js -->
+            <div class="card-grid"></div>
+
             <button class="load-more-btn">โหลดร้านเพิ่มเติม</button>
         </main>
     </div>
@@ -93,6 +82,7 @@
         <div class="footer-logo">TU Aroi</div>
         <p>© 2026 รวบรวมร้านเด็ดและสถานที่รอบมหาวิทยาลัยธรรมศาสตร์</p>
     </footer>
+
     <script src="script.js"></script>
 </body>
 </html>

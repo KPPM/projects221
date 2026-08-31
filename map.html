@@ -15,7 +15,8 @@
             height: 520px;
             border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 12px var(--shadow-color);
+            border: 1px solid var(--border-color);
         }
         #map { width: 100%; height: 100%; z-index: 1; }
         .map-controls {
@@ -28,22 +29,22 @@
             gap: 10px;
         }
         .control-btn {
-            background: #fff;
-            color: #333;
-            border: none;
+            background: var(--card-bg);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
             padding: 10px 16px;
             border-radius: 30px;
             font-weight: bold;
             cursor: pointer;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            box-shadow: 0 2px 8px var(--shadow-color);
             display: flex;
             align-items: center;
             gap: 8px;
             transition: all 0.2s;
             font-size: 13px;
         }
-        .control-btn:hover { background: #f0f0f0; transform: translateY(-2px); }
-        .control-btn.active { background: #a80018; color: #fff; }
+        .control-btn:hover { background: var(--bg-color); transform: translateY(-2px); }
+        .control-btn.active { background: var(--primary-red); color: #fff; border-color: var(--primary-red); }
     </style>
 </head>
 <body>
@@ -56,6 +57,9 @@
             <a href="map.html" class="active">แผนที่วิทยาเขต</a>
         </nav>
         <div class="header-right">
+            <button id="darkModeToggle" class="theme-toggle-btn" title="สลับโหมดสว่าง/มืด">
+                <i class="fa-solid fa-moon"></i>
+            </button>
             <a href="profile.html"><i class="fa-regular fa-user icon-btn"></i></a>
             <a href="login.html" class="btn-primary-red" style="padding: 6px 14px; font-size: 13px;">เข้าสู่ระบบ</a>
         </div>
@@ -65,7 +69,7 @@
         <div class="content-header">
             <div>
                 <h2>แผนที่พิกัดร้านอร่อย (มธ. รังสิต)</h2>
-                <p class="subtitle">คลิก "โหมดปักหมุด" เพื่อเพิ่มร้านค้าเด็ดๆ บนแผนที่ด้วยตัวเอง</p>
+                <p class="subtitle" style="color: var(--text-muted); font-size: 13px;">คลิก "โหมดปักหมุด" เพื่อเพิ่มร้านค้าเด็ดๆ บนแผนที่ด้วยตัวเอง</p>
             </div>
         </div>
 
@@ -73,7 +77,7 @@
             <div id="map"></div>
             <div class="map-controls">
                 <button id="addPinBtn" class="control-btn" onclick="togglePinMode()">
-                    <i class="fa-solid fa-map-pin" style="color: #a80018;"></i> <span id="pinBtnText">โหมดปักหมุด</span>
+                    <i class="fa-solid fa-map-pin" style="color: var(--primary-red);"></i> <span id="pinBtnText">โหมดปักหมุด</span>
                 </button>
                 <button class="control-btn" onclick="getCurrentLocation()">
                     <i class="fa-solid fa-crosshairs" style="color: #007bff;"></i> ตำแหน่งของฉัน
@@ -83,7 +87,6 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
     <script>
         let map, userMarker;
         let isPinMode = false;
@@ -130,10 +133,8 @@
 
         map.on('click', function(e) {
             if (!isPinMode) return;
-
             const name = prompt("ระบุชื่อร้านหรือสถานที่ต้องการปักหมุด:");
             if (!name) return;
-
             const desc = prompt("ระบุเมนูแนะนำ/คำอธิบายเพิ่มเติม:") || "";
 
             const newMarker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map);

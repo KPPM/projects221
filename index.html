@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>หน้าแรก - TU Aroi</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <header class="navbar">
+        <div class="logo">TU Aroi</div>
+        <nav class="nav-links">
+            <a href="search.html" class="active">ค้นพบ</a>
+            <a href="profile.html">บันทึกไว้</a>
+            <a href="events.html">กิจกรรม</a>
+            <a href="map.html">แผนที่วิทยาเขต</a>
+        </nav>
+        <div class="header-right">
+            <button id="darkModeToggle" class="theme-toggle-btn" title="สลับโหมดสว่าง/มืด">
+                <i class="fa-solid fa-moon"></i>
+            </button>
+            <a href="profile.html"><i class="fa-regular fa-user icon-btn"></i></a>
+            <a href="login.html" class="btn-primary-red" style="padding: 6px 14px; font-size: 13px;">เข้าสู่ระบบ</a>
+        </div>
+    </header>
+
+    <div class="container" style="flex-direction: column; text-align: center; margin-top: 80px;">
+        <h1>วันนี้ไปไหนดีครับ?</h1>
+        <div style="margin-top: 20px; display: flex; justify-content: center; gap: 10px;">
+            <input type="text" placeholder="ค้นหาร้านอาหาร, คาเฟ่..." style="padding: 10px 20px; width: 300px; border-radius: 20px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main);">
+            <button class="btn-primary-red">ค้นหา</button>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

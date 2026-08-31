@@ -18,26 +18,19 @@
             <i class="fa-brands fa-google"></i> เข้าสู่ระบบด้วย Google
         </button>
 
-        <p style="font-size: 13px; margin-top: 25px; color: #666;">
-            ยังไม่มีบัญชีผู้ใช้? <a href="register.html" style="color: #a80018; font-weight: bold;">ลงทะเบียนใหม่</a>
-        </p>
+        
     </div>
 
-    <!-- สคริปต์เชื่อมต่อ Supabase และตรวจสอบโดเมน มธ. -->
     <script>
         const SUPABASE_URL = 'https://lcmqqovjgdkcbwyxxfwa.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_ljqn7Kr_anpQJ2k7PvHSig_zRSS5o-8';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // 1. เมื่อกดปุ่มเข้าสู่ระบบด้วย Google
         document.getElementById('googleLoginBtn').addEventListener('click', async function() {
             try {
                 const { error } = await supabaseClient.auth.signInWithOAuth({
                     provider: 'google',
-                    options: {
-                        // ให้ Redirect กลับมาที่หน้า login ก่อนเพื่อตรวจสอบโดเมน
-                        redirectTo: window.location.href 
-                    }
+                    options: { redirectTo: window.location.href }
                 });
                 if (error) throw error;
             } catch (err) {
@@ -46,19 +39,13 @@
             }
         });
 
-        // 2. ตรวจสอบ Session เมื่อโหลดหน้า (กรณีกลับมาจากการ Login ของ Google)
         window.addEventListener('load', async () => {
             const { data: { session } } = await supabaseClient.auth.getSession();
-            
             if (session && session.user) {
                 const email = session.user.email;
-                
-                // ตรวจสอบโดเมนของอีเมล
                 if (email.endsWith('@tu.ac.th') || email.endsWith('@dome.tu.ac.th')) {
-                    // โดเมนถูกต้อง นำทางไปหน้าค้นพบ (Search)
                     window.location.href = 'search.html';
                 } else {
-                    // โดเมนไม่ถูกต้อง บังคับออกจากระบบทันที
                     await supabaseClient.auth.signOut();
                     alert('❌ ปฏิเสธการเข้าถึง: ระบบอนุญาตเฉพาะอีเมล @tu.ac.th หรือ @dome.tu.ac.th ของมหาวิทยาลัยธรรมศาสตร์เท่านั้น');
                 }
