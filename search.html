@@ -54,6 +54,11 @@
                     <i class="fa-solid fa-sliders" aria-hidden="true"></i>
                 </div>
                 <label class="quick-filter-check"><input type="checkbox" id="filter-open"> <span>เปิดอยู่ตอนนี้</span></label>
+                <label class="quick-filter-label" for="filter-category">ประเภทร้าน</label>
+                <select id="filter-category" disabled aria-describedby="filter-category-note">
+                    <option value="all">กำลังโหลดประเภทร้าน...</option>
+                </select>
+                <p class="quick-filter-note" id="filter-category-note">ตัวเลือกจากร้านค้าที่มีอยู่</p>
                 <label class="quick-filter-label" for="filter-distance">ระยะทางจากฉัน</label>
                 <select id="filter-distance">
                     <option value="all">ทุกระยะทาง</option>
@@ -92,6 +97,33 @@
                     </select>
                 </div>
             </div>
+
+            <section class="discovery-randomizer" id="discovery-randomizer" aria-labelledby="discovery-randomizer-title">
+                <div class="discovery-randomizer-copy">
+                    <p class="discovery-randomizer-eyebrow"><i class="fa-solid fa-wand-magic-sparkles"></i> DISCOVERY PICK</p>
+                    <h3 id="discovery-randomizer-title">ให้เราช่วยเลือกร้านให้ไหม?</h3>
+                    <p>สุ่มจากร้านที่ตรงกับตัวกรองของคุณในตอนนี้</p>
+                    <button class="discovery-random-btn" id="discovery-random-btn" type="button" disabled><i class="fa-solid fa-dice"></i> สุ่มร้านแนะนำ</button>
+                    <p class="discovery-random-status" id="discovery-random-status" aria-live="polite">ตั้งค่าตัวกรองแล้วเริ่มสุ่มได้เลย</p>
+                </div>
+                <div class="discovery-random-stage" id="discovery-random-stage">
+                    <div class="discovery-shuffle-deck" aria-hidden="true">
+                        <span></span><span></span><span></span>
+                    </div>
+                    <div class="discovery-random-card" id="discovery-random-card" role="button" tabindex="0" aria-label="สุ่มร้านแนะนำ">
+                        <div class="discovery-card-face discovery-card-front"><i class="fa-solid fa-compass"></i><span>YOUR NEXT PICK</span></div>
+                        <div class="discovery-card-face discovery-card-back">
+                            <img id="discovery-random-image" src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500" alt="ร้านที่สุ่มได้">
+                            <div>
+                                <strong id="discovery-random-title">กำลังรอคำแนะนำ</strong>
+                                <span id="discovery-random-meta">ปรับตัวกรอง แล้วกดสุ่ม</span>
+                                <a id="discovery-random-link" href="detail.html">ดูรายละเอียด <i class="fa-solid fa-arrow-right"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="discovery-celebration" id="discovery-celebration" aria-hidden="true"></div>
+            </section>
 
             <!-- การ์ดร้านค้าจะถูกเรนเดอร์ลงใน div นี้โดย script.js -->
             <div class="card-grid"></div>

@@ -964,6 +964,55 @@ document.addEventListener('DOMContentLoaded', () => {
         const filterDistance = document.getElementById('filter-distance');
         const filterRating = document.getElementById('filter-rating');
         const distanceStatus = document.getElementById('distance-filter-status');
+        const filterCategory = document.getElementById('filter-category');
+        const discoveryRandomButton = document.getElementById('discovery-random-btn');
+        const discoveryRandomCard = document.getElementById('discovery-random-card');
+        const discoveryRandomStage = document.getElementById('discovery-random-stage');
+        const discoveryRandomStatus = document.getElementById('discovery-random-status');
+        const discoveryCelebration = document.getElementById('discovery-celebration');
+        let discoveryDrawDeck = [];
+        let discoveryDeckSignature = '';
+        let discoveryLastDrawKey = null;
+        let isDiscoveryDrawing = false;
+
+        const getDiscoveryCategory = (place) => String(place.category || '').trim();
+        const getDiscoveryPlaceKey = (place) => String(place.id || place.name || '');
+
+        const populateDiscoveryCategories = (places) => {
+            if (!filterCategory) return;
+            const currentValue = filterCategory.value;
+            const categories = [...new Set(places.map(getDiscoveryCategory).filter(Boolean))]
+                .sort((first, second) => first.localeCompare(second, 'th'));
+            filterCategory.replaceChildren(new Option('ทุกประเภทร้าน', 'all'));
+            categories.forEach((category) => filterCategory.add(new Option(category, category)));
+            filterCategory.value = categories.includes(currentValue) ? currentValue : 'all';
+            filterCategory.disabled = false;
+        };
+
+        const shuffleDiscoveryDeck = (places) => {
+            const shuffled = [...places];
+            for (let index = shuffled.length - 1; index > 0; index--) {
+                const randomIndex = Math.floor(Math.random() * (index + 1));
+                [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+            }
+            return shuffled;
+        };
+
+        const prepareDiscoveryDeck = (places, signature) => {
+            discoveryDrawDeck = shuffleDiscoveryDeck(places);
+            if (discoveryDrawDeck.length > 1 && getDiscoveryPlaceKey(discoveryDrawDeck[discoveryDrawDeck.length - 1]) === discoveryLastDrawKey) {
+                const swapIndex = Math.floor(Math.random() * (discoveryDrawDeck.length - 1));
+                [discoveryDrawDeck[discoveryDrawDeck.length - 1], discoveryDrawDeck[swapIndex]] = [discoveryDrawDeck[swapIndex], discoveryDrawDeck[discoveryDrawDeck.length - 1]];
+            }
+            discoveryDeckSignature = signature;
+        };
+
+        const updateDiscoveryRandomizerAvailability = () => {
+            if (!discoveryRandomButton || isDiscoveryDrawing) return;
+            const hasChoices = currentFilteredPlaces.length > 0;
+            discoveryRandomButton.disabled = !hasChoices;
+            if (!hasChoices && discoveryRandomStatus) discoveryRandomStatus.textContent = 'ยังไม่มีร้านที่ตรงกับตัวกรองนี้';
+        };
 
         // รองรับพารามิเตอร์ ?q= จากหน้าแรก
         const initParams = new URLSearchParams(window.location.search);
@@ -1055,6 +1104,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             });
 
+            populateDiscoveryCategories(rawPlaces);
+            const selectedDiscoveryCategory = filterCategory ? filterCategory.value : 'all';
+
             currentFilteredPlaces = rawPlaces.filter(place => {
                 if (searchQuery) {
                     const matchName = place.name ? place.name.toLowerCase().includes(searchQuery) : false;
@@ -1071,6 +1123,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (catText.includes('อ่านหนังสือ') && !(pCat.includes('อ่านหนังสือ') || pCat.includes('คาเฟ่'))) return false;
                     if (catText.includes('เกม') && !(pCat.includes('เกม') || pName.includes('board') || pName.includes('game'))) return false;
                 }
+
+                if (selectedDiscoveryCategory !== 'all' && getDiscoveryCategory(place) !== selectedDiscoveryCategory) return false;
 
                 if (isOpenChecked && !place.currently_open) return false;
 
@@ -1103,6 +1157,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             renderPlaces();
+            updateDiscoveryRandomizerAvailability();
         };
 
         function renderPlaces() {
@@ -1124,6 +1179,69 @@ document.addEventListener('DOMContentLoaded', () => {
             if (loadBtn) loadBtn.style.display = (displayLimit >= currentFilteredPlaces.length) ? 'none' : 'block';
         }
 
+        const celebrateDiscoveryDraw = () => {
+            if (!discoveryCelebration || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+            const colors = ['var(--accent-gold)', 'var(--primary-red)', 'var(--text-muted)'];
+            const particles = Array.from({ length: 16 }, (_, index) => {
+                const particle = document.createElement(index % 4 === 0 ? 'span' : 'i');
+                const angle = (Math.PI * 2 * index) / 16;
+                const distance = 46 + Math.random() * 82;
+                particle.className = particle.tagName === 'SPAN' ? 'discovery-sparkle' : 'discovery-confetti';
+                if (particle.tagName === 'SPAN') particle.textContent = '✦';
+                else particle.style.setProperty('--particle-color', colors[index % colors.length]);
+                particle.style.setProperty('--particle-x', `${Math.cos(angle) * distance}px`);
+                particle.style.setProperty('--particle-y', `${Math.sin(angle) * distance}px`);
+                particle.style.setProperty('--particle-rotation', `${Math.floor(Math.random() * 300 - 150)}deg`);
+                discoveryCelebration.appendChild(particle);
+                return particle;
+            });
+            window.setTimeout(() => particles.forEach((particle) => particle.remove()), 1000);
+        };
+
+        const drawDiscoveryPlace = () => {
+            if (isDiscoveryDrawing || currentFilteredPlaces.length === 0) return;
+            const signature = currentFilteredPlaces.map(getDiscoveryPlaceKey).sort().join('|');
+            if (discoveryDeckSignature !== signature || discoveryDrawDeck.length === 0) prepareDiscoveryDeck(currentFilteredPlaces, signature);
+            const selected = discoveryDrawDeck.pop();
+            const priceInfo = getPriceDisplayInfo(selected);
+            const { rating } = getEffectivePlaceRatingAndCount(selected);
+
+            isDiscoveryDrawing = true;
+            if (discoveryRandomButton) {
+                discoveryRandomButton.disabled = true;
+                discoveryRandomButton.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> กำลังสับไพ่...';
+            }
+            discoveryRandomCard?.classList.remove('is-flipped');
+            discoveryRandomStage?.classList.add('is-shuffling');
+            discoveryRandomCard?.classList.add('is-shuffling');
+            if (discoveryRandomStatus) discoveryRandomStatus.textContent = 'กำลังสับไพ่จากร้านที่ตรงกับตัวกรอง...';
+
+            window.setTimeout(() => {
+                const image = document.getElementById('discovery-random-image');
+                if (image) {
+                    image.onerror = function () { this.onerror = null; this.src = getRelevantFallbackImage(selected); };
+                    image.src = resolveHighResImage(selected.image_url, selected);
+                }
+                const title = document.getElementById('discovery-random-title');
+                const meta = document.getElementById('discovery-random-meta');
+                const link = document.getElementById('discovery-random-link');
+                if (title) title.textContent = selected.name || 'ร้านแนะนำสำหรับคุณ';
+                if (meta) meta.textContent = `${getDiscoveryCategory(selected) || 'ร้านค้า'} · ★ ${rating || '-'} · ${priceInfo.fullLabel}`;
+                if (link) link.href = `detail.html?id=${selected.id}`;
+
+                discoveryRandomStage?.classList.remove('is-shuffling');
+                discoveryRandomCard?.classList.remove('is-shuffling');
+                discoveryRandomCard?.classList.add('is-flipped', 'is-revealing');
+                celebrateDiscoveryDraw();
+                if (discoveryRandomStatus) discoveryRandomStatus.textContent = `วันนี้ลอง ${selected.name || 'ร้านนี้'} ดูไหม?`;
+                window.setTimeout(() => discoveryRandomCard?.classList.remove('is-revealing'), 720);
+                discoveryLastDrawKey = getDiscoveryPlaceKey(selected);
+                isDiscoveryDrawing = false;
+                if (discoveryRandomButton) discoveryRandomButton.innerHTML = '<i class="fa-solid fa-dice"></i> สุ่มร้านแนะนำอีกครั้ง';
+                updateDiscoveryRandomizerAvailability();
+            }, 900);
+        };
+
         if (filterOpen) filterOpen.addEventListener('change', () => { displayLimit = 6; fetchFilteredPlaces(); });
         if (filterDistance) {
             filterDistance.addEventListener('change', async () => {
@@ -1133,6 +1251,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         if (filterRating) filterRating.addEventListener('change', () => { displayLimit = 6; fetchFilteredPlaces(); });
+        if (filterCategory) filterCategory.addEventListener('change', () => { displayLimit = 6; fetchFilteredPlaces(); });
 
         document.querySelectorAll('.category-list .cat-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -1183,6 +1302,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (filterOpen) filterOpen.checked = false;
                 if (filterDistance) filterDistance.value = 'all';
                 if (filterRating) filterRating.checked = false;
+                if (filterCategory) filterCategory.value = 'all';
                 if (distanceStatus) distanceStatus.textContent = '';
                 document.querySelectorAll('.price-btn-group .price-btn').forEach(b => {
                     b.classList.remove('active');
@@ -1197,6 +1317,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const loadBtn = document.querySelector('.load-more-btn');
         if (loadBtn) loadBtn.addEventListener('click', () => { displayLimit += 6; renderPlaces(); });
+
+        if (discoveryRandomButton) discoveryRandomButton.addEventListener('click', drawDiscoveryPlace);
+        if (discoveryRandomCard) {
+            discoveryRandomCard.addEventListener('click', (event) => {
+                if (!event.target.closest('#discovery-random-link')) drawDiscoveryPlace();
+            });
+            discoveryRandomCard.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    drawDiscoveryPlace();
+                }
+            });
+        }
 
         getUserLocation().then(() => fetchFilteredPlaces());
 
@@ -2349,27 +2482,106 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnRandom = document.getElementById('btnRandom');
 
     if (tarotCard && btnRandom) {
+        const randomizerStage = document.getElementById('randomizerStage');
+        const categorySelect = document.getElementById('random-category');
         const randomPageCount = document.getElementById('random-page-history-count');
+        const randomStatus = document.getElementById('random-status');
+        const celebrationLayer = document.getElementById('celebrationLayer');
+        let drawDeck = [];
+        let deckSignature = '';
+        let lastDrawnId = null;
+        let isDrawing = false;
         if (randomPageCount) randomPageCount.textContent = getRandomHistory().length;
 
-        const pickRandomShop = async () => {
-            const catFilter = document.getElementById('random-category').value;
-            const priceFilter = document.getElementById('random-price').value;
-            let availableShops = mockPlaces;
-
+        const getAvailableShops = async () => {
+            let shops = mockPlaces;
             if (supabaseClient) {
                 try {
                     const { data } = await supabaseClient.from('places').select('*');
-                    if (data && data.length > 0) availableShops = data;
-                } catch (e) { console.error(e); }
+                    if (data && data.length > 0) shops = data;
+                } catch (error) {
+                    console.error(error);
+                }
             }
+            return shops;
+        };
+
+        const getShopCategory = (shop) => String(shop.category || '').trim();
+
+        const populateCategoryFilter = (shops) => {
+            if (!categorySelect) return;
+            const selectedValue = categorySelect.value;
+            const categories = [...new Set(shops.map(getShopCategory).filter(Boolean))]
+                .sort((first, second) => first.localeCompare(second, 'th'));
+            categorySelect.replaceChildren();
+
+            const allOption = new Option('ทุกประเภทร้าน', 'all');
+            categorySelect.add(allOption);
+            categories.forEach((category) => categorySelect.add(new Option(category, category)));
+            categorySelect.value = categories.includes(selectedValue) ? selectedValue : 'all';
+            categorySelect.disabled = false;
+        };
+
+        // Categories are read from the same shop collection used by the randomizer,
+        // avoiding a second, hard-coded category list that can drift from real data.
+        getAvailableShops().then(populateCategoryFilter);
+
+        // A Fisher-Yates deck guarantees one equally likely pass through every eligible shop
+        // before a shop can appear again. Keeping the last card out of the next deck's first
+        // draw also avoids the disappointing immediate repeat when a new pass begins.
+        const shuffle = (items) => {
+            const shuffled = [...items];
+            for (let index = shuffled.length - 1; index > 0; index--) {
+                const randomIndex = Math.floor(Math.random() * (index + 1));
+                [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+            }
+            return shuffled;
+        };
+
+        const createDeck = (shops, signature) => {
+            drawDeck = shuffle(shops);
+            if (drawDeck.length > 1 && drawDeck[drawDeck.length - 1].id === lastDrawnId) {
+                const swapIndex = Math.floor(Math.random() * (drawDeck.length - 1));
+                [drawDeck[drawDeck.length - 1], drawDeck[swapIndex]] = [drawDeck[swapIndex], drawDeck[drawDeck.length - 1]];
+            }
+            deckSignature = signature;
+        };
+
+        const celebrateReveal = () => {
+            if (!celebrationLayer || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+            const colors = ['var(--accent-gold)', 'var(--primary-red)', 'var(--text-muted)'];
+            const particles = Array.from({ length: 22 }, (_, index) => {
+                const particle = document.createElement(index % 4 === 0 ? 'span' : 'i');
+                const angle = (Math.PI * 2 * index) / 22;
+                const distance = 80 + Math.random() * 155;
+                if (particle.tagName === 'SPAN') {
+                    particle.className = 'sparkle';
+                    particle.textContent = '✦';
+                    particle.style.setProperty('--sparkle-x', `${Math.cos(angle) * distance}px`);
+                    particle.style.setProperty('--sparkle-y', `${Math.sin(angle) * distance}px`);
+                } else {
+                    particle.className = 'confetti';
+                    particle.style.setProperty('--confetti-color', colors[index % colors.length]);
+                    particle.style.setProperty('--confetti-x', `${Math.cos(angle) * distance}px`);
+                    particle.style.setProperty('--confetti-y', `${Math.sin(angle) * distance}px`);
+                    particle.style.setProperty('--confetti-rotate', `${Math.floor(Math.random() * 540 - 270)}deg`);
+                }
+                celebrationLayer.appendChild(particle);
+                return particle;
+            });
+            window.setTimeout(() => particles.forEach(particle => particle.remove()), 1100);
+        };
+
+        const pickRandomShop = async () => {
+            if (isDrawing) return;
+            isDrawing = true;
+            const catFilter = categorySelect?.value || 'all';
+            const priceFilter = document.getElementById('random-price').value;
+            const availableShops = await getAvailableShops();
+            populateCategoryFilter(availableShops);
 
             let filtered = availableShops.filter(shop => {
-                const sCat = (shop.category || '').toLowerCase();
-                let matchCat = true;
-                if (catFilter === 'food') matchCat = sCat.includes('อาหาร') || sCat.includes('คาเฟ่') || sCat.includes('เครื่องดื่ม');
-                else if (catFilter === 'study') matchCat = sCat.includes('อ่านหนังสือ') || sCat.includes('คาเฟ่');
-                else if (catFilter === 'game') matchCat = sCat.includes('เกม') || (shop.name || '').toLowerCase().includes('game');
+                const matchCat = catFilter === 'all' || getShopCategory(shop) === catFilter;
 
                 const priceInfo = getPriceDisplayInfo(shop);
                 const matchPrice = (priceFilter === 'all' || priceInfo.symbol === priceFilter);
@@ -2378,10 +2590,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (filtered.length === 0) {
                 showToast('ไม่พบร้านตามเงื่อนไขที่เลือก ลองเปลี่ยนตัวกรองดูนะครับ!', 'fa-circle-info');
+                isDrawing = false;
                 return;
             }
 
-            const selected = filtered[Math.floor(Math.random() * filtered.length)];
+            const signature = `${catFilter}|${priceFilter}|${filtered.map(shop => shop.id).sort().join('|')}`;
+            if (deckSignature !== signature || drawDeck.length === 0) createDeck(filtered, signature);
+            const selected = drawDeck.pop();
             const priceInfo = getPriceDisplayInfo(selected);
             const { rating } = getEffectivePlaceRatingAndCount(selected);
 
@@ -2398,20 +2613,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('res-link').href = `detail.html?id=${selected.id}`;
             };
 
+            btnRandom.disabled = true;
+            btnRandom.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> กำลังสับไพ่...';
+            tarotCard.classList.remove('flipped');
+            randomizerStage?.classList.add('is-shuffling');
+            tarotCard.classList.add('is-shuffling');
+            if (randomStatus) randomStatus.textContent = 'กำลังสับไพ่ให้คุณ...';
+
+            await new Promise(resolve => window.setTimeout(resolve, 900));
+            updateCardData();
+            randomizerStage?.classList.remove('is-shuffling');
+            tarotCard.classList.remove('is-shuffling');
+            tarotCard.classList.add('flipped');
+            tarotCard.classList.add('is-revealing');
+            celebrateReveal();
+            window.setTimeout(() => tarotCard.classList.remove('is-revealing'), 750);
+            if (randomStatus) randomStatus.textContent = `ได้แล้ว! ${selected.name} คือคำตอบของคุณวันนี้`;
+
             // S2-03: บันทึกร้านค้าที่สุ่มได้ลงประวัติการสุ่มร้านค้าย้อนหลังทันที
             await addRandomHistory(selected);
             showToast(`สุ่มได้ร้าน "${selected.name}" (บันทึกเข้าประวัติในโปรไฟล์แล้ว)`, 'fa-dice');
-
-            if (tarotCard.classList.contains('flipped')) {
-                tarotCard.classList.remove('flipped');
-                setTimeout(() => { updateCardData(); tarotCard.classList.add('flipped'); }, 400);
-            } else {
-                updateCardData();
-                tarotCard.classList.add('flipped');
-            }
+            lastDrawnId = selected.id;
+            btnRandom.disabled = false;
+            btnRandom.innerHTML = '<i class="fa-solid fa-dice"></i> สุ่มอีกครั้ง!';
+            isDrawing = false;
         };
         btnRandom.addEventListener('click', pickRandomShop);
-        tarotCard.addEventListener('click', pickRandomShop);
+        tarotCard.addEventListener('click', (event) => {
+            if (!event.target.closest('#res-link')) pickRandomShop();
+        });
+        tarotCard.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                pickRandomShop();
+            }
+        });
     }
 
     // ==========================================

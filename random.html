@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body>
+<body class="random-page">
     <header class="navbar">
         <div class="logo">TU Aroi</div>
         <nav class="nav-links">
@@ -41,13 +41,11 @@
         <div class="filter-card">
             <div class="filter-options">
                 <div class="filter-group">
-                    <label for="random-category">หมวดหมู่</label>
-                    <select id="random-category">
-                        <option value="all">ทั้งหมด</option>
-                        <option value="food">อาหารและเครื่องดื่ม</option>
-                        <option value="study">โซนอ่านหนังสือ</option>
-                        <option value="game">ศูนย์รวมเกม</option>
+                    <label for="random-category">ประเภทร้าน</label>
+                    <select id="random-category" disabled aria-describedby="random-category-note">
+                        <option value="all">กำลังโหลดประเภทร้าน...</option>
                     </select>
+                    <span class="filter-note" id="random-category-note">ตัวเลือกจากร้านค้าที่มีอยู่</span>
                 </div>
                 <div class="filter-group">
                     <label for="random-price">งบประมาณ</label>
@@ -62,8 +60,13 @@
         </div>
 
         <!-- ไพ่สุ่ม -->
-        <div class="card-wrapper">
-            <div class="tarot-card" id="tarotCard">
+        <div class="card-wrapper" id="randomizerStage">
+            <div class="shuffle-deck" aria-hidden="true">
+                <span class="shuffle-card shuffle-card-one"></span>
+                <span class="shuffle-card shuffle-card-two"></span>
+                <span class="shuffle-card shuffle-card-three"></span>
+            </div>
+            <div class="tarot-card" id="tarotCard" role="button" tabindex="0" aria-label="เปิดไพ่สุ่มร้านค้า">
                 <!-- ด้านหลังไพ่ (ก่อนเปิด) -->
                 <div class="card-front">
                     <i class="fa-solid fa-wand-magic-sparkles"></i>
@@ -76,7 +79,7 @@
                         <div>
                             <div class="shop-title" id="res-title">ชื่อร้านค้า</div>
                             <div class="shop-meta">
-                                <span><i class="fa-solid fa-star" style="color:#f1c40f;"></i> <span id="res-rating">4.8</span></span>
+                                <span><i class="fa-solid fa-star" style="color:var(--accent-gold);"></i> <span id="res-rating">4.8</span></span>
                                 <span><i class="fa-solid fa-tag"></i> <span id="res-cat">อาหารตามสั่ง</span></span>
                                 <span><i class="fa-solid fa-dollar-sign"></i> <span id="res-price">$</span></span>
                             </div>
@@ -90,7 +93,9 @@
             </div>
         </div>
 
-        <button class="btn-random" id="btnRandom"><i class="fa-solid fa-dice"></i> สุ่มเลย!</button>
+        <button class="btn-random" id="btnRandom" type="button"><i class="fa-solid fa-dice"></i> สุ่มเลย!</button>
+        <p class="random-status" id="random-status" aria-live="polite">เลือกตัวกรอง แล้วเปิดไพ่เพื่อรับคำทำนายมื้อถัดไป</p>
+        <div class="celebration-layer" id="celebrationLayer" aria-hidden="true"></div>
 
         <!-- S2-03: แสดงการแจ้งเตือนการบันทึกประวัติการสุ่มและลิงก์ไปหน้า Profile -->
         <div style="margin-top: 25px;">
