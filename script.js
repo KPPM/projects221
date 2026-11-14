@@ -154,61 +154,8 @@ document.addEventListener('DOMContentLoaded', () => {
     checkGlobalAuthNavbar();
 
     // ==========================================
-    // 4. ข้อมูล Mock Data สำรอง และฟังก์ชันทำความสะอาดข้อมูล (S2-01)
+    // 4. Shared display helpers (database data is the only restaurant source)
     // ==========================================
-    const mockPlaces = [
-        {
-            id: 1,
-            name: '153 Espresso',
-            category: 'คาเฟ่',
-            rating: 4.7,
-            review_count: '47',
-            distance_km: 0.3,
-            open: '06:30',
-            close: '18:30',
-            price_range: '฿1-200',
-            phone: '02-564-7000',
-            address: 'สวทช. ตึก INC2 ชั้น G มธ. รังสิต ต.คลองหนึ่ง อ.คลองหลวง จ.ปทุมธานี 12120',
-            features: 'กาแฟคั่วพิเศษ, เอสเปรสโซ่บาร์, ที่นั่งทำงาน, แอร์เย็น, ที่จอดรถสะดวก',
-            review_snippet: 'กาแฟ Specialty หอมเข้มข้น บรรยากาศเงียบสงบเหมาะกับนั่งทำงาน',
-            review_comment: 'กาแฟรสชาติดีมาก เมล็ดกาแฟคั่วหอม บาริสต้าแนะนำดี',
-            image_url: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800'
-        },
-        {
-            id: 2,
-            name: 'ศูนย์อาหาร SC (Green Canteen)',
-            category: 'อาหารและเครื่องดื่ม',
-            rating: 4.5,
-            review_count: '160',
-            distance_km: 0.5,
-            open: '07:00',
-            close: '18:00',
-            price_range: '฿35-80',
-            phone: '02-564-4440',
-            address: 'อาคารศูนย์อาหารกรีนแคนทีน มธ. รังสิต ต.คลองหนึ่ง อ.คลองหลวง จ.ปทุมธานี 12120',
-            features: 'ข้าวกล้องอกไก่, ก๋วยเตี๋ยวต้มยำโบราณ, น้ำผลไม้ปั่นสด, ชำระเงิน QR Code',
-            review_snippet: 'โรงอาหารหลักรวมร้านสุขภาพและอาหารตามสั่งราคานักศึกษา',
-            review_comment: 'สะอาด มีเมนูหลากหลาย ราคาเป็นมิตรกับนักศึกษา จ่ายผ่านสแกนสะดวกมาก',
-            image_url: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800'
-        },
-        {
-            id: 3,
-            name: 'นมสดพระนคร สาขา ม.ธรรมศาสตร์ รังสิต',
-            category: 'คาเฟ่และของหวาน',
-            rating: 4.8,
-            review_count: '534',
-            distance_km: 0.8,
-            open: '14:00',
-            close: '00:00',
-            price_range: '฿1-200',
-            phone: '098-251-7896',
-            address: 'Mingle Market 126 หมู่ 18 ห้อง E8 ถ.เชียงราก ต.คลองหนึ่ง อ.คลองหลวง จ.ปทุมธานี 12120',
-            features: 'ปังโทสต์ไอศกรีม, นมสดชมพู, ปังเย็นภูเขาไฟ, เปิดดึกถึงเที่ยงคืน',
-            review_snippet: 'บรรยากาศดีมาก นมสดอร่อย ปังเย็นและโทสต์ฉ่ำเนยคุ้มราคา',
-            review_comment: 'บรรยากาศดีมากก นมสดอร่อยยย ปังเย็น 99 บาทคือคุ้มสุดๆ กินแทบทุกวัน',
-            image_url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800'
-        }
-    ];
 
     const FALLBACK_FOOD_IMAGES = [
         'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&q=80&w=800',
@@ -515,48 +462,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${place.name} (${place.category || 'ร้านค้า'}) ย่านมหาวิทยาลัยธรรมศาสตร์ ศูนย์รังสิต`;
     }
 
-    // ==========================================
-    // ระบบจัดการคะแนนดาวและรีวิวใน Local Cache + Supabase (S2-02)
-    // ==========================================
-    function getLocalPlaceReviews(placeId) {
-        try {
-            const raw = localStorage.getItem(`tu_aroi_reviews_${placeId}`);
-            const parsed = raw ? JSON.parse(raw) : [];
-            return Array.isArray(parsed) ? parsed : [];
-        } catch (_) {
-            return [];
-        }
-    }
-
-    function saveLocalPlaceReview(placeId, reviewObj) {
-        try {
-            const list = getLocalPlaceReviews(placeId);
-            list.unshift(reviewObj);
-            localStorage.setItem(`tu_aroi_reviews_${placeId}`, JSON.stringify(list.slice(0, 50)));
-        } catch (_) {}
-    }
-
-    function getLocalRatingOverride(placeId) {
-        try {
-            const map = JSON.parse(localStorage.getItem('tu_aroi_rating_overrides') || '{}');
-            return map[String(placeId)] || null;
-        } catch (_) {
-            return null;
-        }
-    }
-
-    function saveLocalRatingOverride(placeId, rating, reviewCount) {
-        try {
-            const map = JSON.parse(localStorage.getItem('tu_aroi_rating_overrides') || '{}');
-            map[String(placeId)] = {
-                rating: Number(Number(rating).toFixed(1)),
-                review_count: Number(reviewCount),
-                updated_at: new Date().toISOString()
-            };
-            localStorage.setItem('tu_aroi_rating_overrides', JSON.stringify(map));
-        } catch (_) {}
-    }
-
     function parseReviewCountNumber(rawCount) {
         if (typeof rawCount === 'number' && !Number.isNaN(rawCount)) return rawCount;
         if (!rawCount) return 0;
@@ -566,20 +471,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getEffectivePlaceRatingAndCount(place) {
-        const override = getLocalRatingOverride(place.id);
-        if (override) {
-            return {
-                rating: override.rating,
-                reviewCount: override.review_count
-            };
-        }
         const baseRating = place.rating !== null && place.rating !== undefined && place.rating !== ''
             ? parseFloat(place.rating)
-            : 4.5;
+            : 0;
         const baseCount = parseReviewCountNumber(place.review_count);
         return {
-            rating: Number.isNaN(baseRating) ? 4.5 : Number(baseRating.toFixed(1)),
-            reviewCount: baseCount > 0 ? baseCount : 1
+            rating: Number.isNaN(baseRating) ? 0 : Number(baseRating.toFixed(1)),
+            reviewCount: Math.max(0, baseCount)
         };
     }
 
@@ -761,8 +659,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.warn('Notification fetch error:', error);
                 }
             }
-            if (!savedPlaces.length) savedPlaces = mockPlaces.filter(place => savedIds.includes(String(place.id)));
-
             const savedPlaceUpdates = savedPlaces
                 .filter(place => place.discount || place.updated_at)
                 .slice(0, 5)
@@ -1077,15 +973,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const sortVal = sortSelect ? sortSelect.value : 'recommended';
 
             let rawPlaces = [];
-
-            if (supabaseClient) {
-                try {
-                    const { data, error } = await supabaseClient.from('places').select('*');
-                    if (!error && data && data.length > 0) rawPlaces = data;
-                } catch (err) { console.error('Supabase fetch error:', err); }
+            try {
+                if (!supabaseClient) throw new Error('ไม่สามารถเชื่อมต่อฐานข้อมูลได้');
+                const { data, error } = await supabaseClient.from('places').select('*');
+                if (error) throw error;
+                rawPlaces = Array.isArray(data) ? data : [];
+            } catch (err) {
+                console.error('Supabase fetch error:', err);
+                currentFilteredPlaces = [];
+                cardGrid.innerHTML = `<p class="data-state data-state-error">ไม่สามารถโหลดข้อมูลร้านค้าได้ กรุณาลองใหม่อีกครั้ง</p>`;
+                const loadBtn = document.querySelector('.load-more-btn');
+                if (loadBtn) loadBtn.style.display = 'none';
+                if (discoveryRandomButton) discoveryRandomButton.disabled = true;
+                if (discoveryRandomStatus) discoveryRandomStatus.textContent = 'ยังสุ่มร้านไม่ได้เนื่องจากโหลดข้อมูลไม่สำเร็จ';
+                return;
             }
-
-            if (rawPlaces.length === 0) rawPlaces = mockPlaces;
 
             rawPlaces = rawPlaces.map(place => {
                 const coords = parseLatLngFromPlace(place);
@@ -1361,14 +1263,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             let savedPlacesData = [];
-            if (supabaseClient) {
-                try {
-                    const { data, error } = await supabaseClient.from('places').select('*').in('id', savedIds);
-                    if (!error && data) savedPlacesData = data;
-                } catch (err) { console.error(err); }
+            try {
+                if (!supabaseClient) throw new Error('ไม่สามารถเชื่อมต่อฐานข้อมูลได้');
+                const { data, error } = await supabaseClient.from('places').select('*').in('id', savedIds);
+                if (error) throw error;
+                savedPlacesData = Array.isArray(data) ? data : [];
+            } catch (err) {
+                console.error('Saved places fetch error:', err);
+                savedCardsGrid.innerHTML = '<p class="data-state data-state-error">ไม่สามารถโหลดรายการที่บันทึกไว้ได้ กรุณาลองใหม่อีกครั้ง</p>';
+                return;
             }
-
-            if (savedPlacesData.length === 0) savedPlacesData = mockPlaces.filter(place => savedIds.includes(String(place.id)));
 
             savedCardsGrid.innerHTML = '';
             if (savedPlacesData.length === 0) {
@@ -1611,63 +1515,24 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
     }
 
-    // ดึงรายการรีวิวทั้งหมดของร้าน (รวมจาก Supabase ตาราง reviews + Local Cache + รีวิวตั้งต้นในตาราง places)
+    // Reviews are authoritative only when returned by the database.
     async function fetchCombinedPlaceReviews(place) {
         const placeId = place ? place.id : globalPlaceId;
-        let dbReviews = [];
-
-        if (supabaseClient) {
-            try {
-                const { data, error } = await supabaseClient
-                    .from('reviews')
-                    .select('*')
-                    .eq('place_id', placeId)
-                    .order('created_at', { ascending: false });
-                if (!error && Array.isArray(data)) dbReviews = data;
-            } catch (err) {
-                console.warn('Reviews fetch info:', err);
-            }
-        }
-
-        const localReviews = getLocalPlaceReviews(placeId);
-        // รวมรีวิวโดยไม่ให้ซ้ำกัน
-        const combined = [...localReviews];
-        dbReviews.forEach(r => {
-            const isDup = combined.some(loc => loc.comment === r.comment && loc.user_name === r.user_name);
-            if (!isDup) combined.push(r);
-        });
-
-        // หากยังไม่มีรีวิวในตาราง reviews เลย แต่ในตาราง places มี review_comment หรือ review_snippet ให้แสดงเป็นรีวิวตั้งต้น
-        if (combined.length === 0 && place) {
-            const seedComment = cleanTextValue(place.review_comment) || cleanTextValue(place.review_snippet);
-            if (seedComment && seedComment.length > 3) {
-                combined.push({
-                    place_id: placeId,
-                    user_name: 'รีวิวแนะนำจากนักศึกษา มธ.',
-                    user_avatar: 'TU',
-                    rating: Math.round(parseFloat(place.rating) || 5),
-                    comment: seedComment,
-                    created_at: new Date(Date.now() - 86400000).toISOString()
-                });
-            }
-        }
-
-        return combined;
+        if (!supabaseClient) throw new Error('ไม่สามารถเชื่อมต่อฐานข้อมูลรีวิวได้');
+        const { data, error } = await supabaseClient.from('reviews').select('*')
+            .eq('place_id', placeId).order('created_at', { ascending: false });
+        if (error) throw error;
+        return Array.isArray(data) ? data : [];
     }
 
     // คำนวณคะแนนดาวเฉลี่ยใหม่ทันทีที่มีการส่งรีวิว และอัปเดตทั้ง DOM + Supabase (S2-02)
     async function recalculateAndSyncRating(place, newStarValue) {
-        const { rating: currentAvg, reviewCount: currentCount } = getEffectivePlaceRatingAndCount(place);
-        const parsedStar = Number(newStarValue);
-        const safeCurrentCount = Math.max(0, currentCount);
-        const newCount = safeCurrentCount + 1;
-        const newAvgRaw = safeCurrentCount > 0
-            ? ((currentAvg * safeCurrentCount) + parsedStar) / newCount
-            : parsedStar;
-        const newAvg = Number(newAvgRaw.toFixed(1));
+        const reviews = await fetchCombinedPlaceReviews(place);
+        const newCount = reviews.length;
+        const newAvg = newCount
+            ? Number((reviews.reduce((total, review) => total + Number(review.rating || 0), 0) / newCount).toFixed(1))
+            : 0;
 
-        // บันทึกลง Local Override ทันทีเพื่อให้หน้าเว็บทุกหน้าแสดงค่าใหม่โดยไม่ต้องรอ
-        saveLocalRatingOverride(place.id, newAvg, newCount);
         place.rating = newAvg;
         place.review_count = String(newCount);
 
@@ -1698,16 +1563,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (reviewPageCount) reviewPageCount.textContent = `(${newCount} รีวิว)`;
 
         // อัปเดตกลับไปยังตาราง places บน Supabase
-        if (supabaseClient) {
-            try {
-                await supabaseClient
-                    .from('places')
-                    .update({ rating: newAvg, review_count: String(newCount) })
-                    .eq('id', place.id);
-            } catch (err) {
-                console.warn('Supabase places rating update note:', err);
-            }
-        }
+        if (!supabaseClient) throw new Error('ไม่สามารถเชื่อมต่อฐานข้อมูลร้านค้าได้');
+        const { error } = await supabaseClient.from('places')
+            .update({ rating: newAvg, review_count: String(newCount) }).eq('id', place.id);
+        if (error) throw error;
 
         return { newAvg, newCount };
     }
@@ -1727,10 +1586,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) { console.warn(err); }
 
-        if (!place) place = mockPlaces.find(p => String(p.id) === String(globalPlaceId)) || mockPlaces[0];
-
         if (!place) {
             document.getElementById('detail-name').textContent = 'ไม่พบข้อมูลสถานที่';
+            const summary = document.getElementById('detail-summary');
+            if (summary) summary.textContent = 'ไม่สามารถโหลดข้อมูลจากฐานข้อมูลได้ กรุณากลับไปลองใหม่อีกครั้ง';
             return;
         }
 
@@ -1930,7 +1789,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const renderDetailReviews = async () => {
             if (!reviewContainer) return;
-            const reviews = await fetchCombinedPlaceReviews(place);
+            let reviews;
+            try { reviews = await fetchCombinedPlaceReviews(place); }
+            catch (_) {
+                reviewContainer.innerHTML = '<p class="data-state data-state-error">ไม่สามารถโหลดรีวิวได้ กรุณาลองใหม่อีกครั้ง</p>';
+                return;
+            }
             if (reviews.length === 0) {
                 reviewContainer.innerHTML = '<p style="font-size: 13px; color: var(--text-muted); padding-top: 10px;">ยังไม่มีรีวิวสำหรับร้านนี้ ร่วมเป็นคนแรกที่รีวิวได้เลย!</p>';
                 return;
@@ -1998,36 +1862,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 try {
-                    // 1. บันทึกลง Local Cache และอัปเดต DOM ทันทีโดยไม่ต้องกด Refresh (S2-02)
-                    saveLocalPlaceReview(place.id, newReview);
-                    if (reviewContainer) {
-                        const emptyMsg = reviewContainer.querySelector('p:only-child');
-                        if (emptyMsg) reviewContainer.innerHTML = '';
-                        reviewContainer.insertAdjacentHTML('afterbegin', buildReviewItemHTML(newReview, true));
-                    }
-
-                    // 2. คำนวณคะแนนดาวเฉลี่ยใหม่ทันทีที่มีการรีวิว (S2-02)
+                    if (!supabaseClient) throw new Error('ไม่สามารถเชื่อมต่อฐานข้อมูลได้');
+                    const { error: insertError } = await supabaseClient.from('reviews').insert([{
+                        place_id: place.id, user_name: newReview.user_name,
+                        user_avatar: String(newReview.user_avatar).slice(0, 250), rating: newReview.rating,
+                        comment: newReview.comment, image_urls: null
+                    }]);
+                    if (insertError) throw insertError;
                     const { newAvg, newCount } = await recalculateAndSyncRating(place, starVal);
-
-                    // 3. บันทึกลง Supabase ตาราง reviews
-                    if (supabaseClient) {
-                        try {
-                            await supabaseClient.from('reviews').insert([{
-                                place_id: place.id,
-                                user_name: newReview.user_name,
-                                user_avatar: String(newReview.user_avatar).slice(0, 250),
-                                rating: newReview.rating,
-                                comment: newReview.comment,
-                                image_urls: null
-                            }]);
-                        } catch (dbErr) {
-                            console.warn('Supabase review insert note:', dbErr);
-                        }
-                    }
+                    await renderDetailReviews();
 
                     quickForm.reset();
                     if (currentGoogleUser && quickReviewerInput) quickReviewerInput.value = currentGoogleUser.fullName;
                     showToast(`ส่งรีวิวสำเร็จ! คะแนนเฉลี่ยอัปเดตเป็น ⭐ ${newAvg.toFixed(1)} (${newCount} รีวิว)`);
+                } catch (err) {
+                    showToast(`ส่งรีวิวไม่สำเร็จ: ${err.message}`, 'fa-triangle-exclamation');
                 } finally {
                     if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'ส่งรีวิว'; }
                 }
@@ -2068,7 +1917,12 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (err) { console.error(err); }
         }
         if (!currentPlace) {
-            currentPlace = mockPlaces.find(p => String(p.id) === String(globalPlaceId)) || mockPlaces[0];
+            const title = document.getElementById('review-place-title');
+            if (title) title.textContent = 'ไม่สามารถโหลดข้อมูลร้านค้าได้';
+            const area = document.getElementById('reviews-content-area');
+            if (area) area.innerHTML = '<p class="data-state data-state-error">กรุณากลับไปหน้าค้นหาแล้วลองเปิดร้านค้าอีกครั้ง</p>';
+            reviewForm.querySelectorAll('input, textarea, button').forEach(el => { el.disabled = true; });
+            return;
         }
 
         const titleH1 = document.getElementById('review-place-title') || document.querySelector('.detail-container h1');
@@ -2101,7 +1955,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const loadAllReviews = async () => {
             if (!reviewsContainer) return;
-            const reviews = await fetchCombinedPlaceReviews(currentPlace);
+            let reviews;
+            try { reviews = await fetchCombinedPlaceReviews(currentPlace); }
+            catch (_) {
+                reviewsContainer.innerHTML = '<p class="data-state data-state-error">ไม่สามารถโหลดรีวิวได้ กรุณาลองใหม่อีกครั้ง</p>';
+                return;
+            }
             reviewsContainer.innerHTML = '';
 
             if (!reviews || reviews.length === 0) {
@@ -2207,32 +2066,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     created_at: new Date().toISOString()
                 };
 
-                // 1. บันทึกลง Local Cache และอัปเดต DOM ทันทีโดยไม่ต้องกด Refresh (S2-02)
-                saveLocalPlaceReview(currentPlace.id, newReviewObj);
-                if (reviewsContainer) {
-                    const emptyMsg = reviewsContainer.querySelector('.empty-reviews-msg');
-                    if (emptyMsg) emptyMsg.remove();
-                    reviewsContainer.insertAdjacentHTML('afterbegin', buildReviewItemHTML(newReviewObj, true));
-                }
-
-                // 2. คำนวณคะแนนดาวเฉลี่ยใหม่ทันทีที่มีการรีวิว (S2-02)
+                if (!supabaseClient) throw new Error('ไม่สามารถเชื่อมต่อฐานข้อมูลได้');
+                const { error: insertError } = await supabaseClient.from('reviews').insert([{
+                    place_id: currentPlace.id, user_name: newReviewObj.user_name,
+                    user_avatar: String(newReviewObj.user_avatar).slice(0, 250), rating: newReviewObj.rating,
+                    comment: newReviewObj.comment, image_urls: newReviewObj.image_urls
+                }]);
+                if (insertError) throw insertError;
                 const { newAvg, newCount } = await recalculateAndSyncRating(currentPlace, starValue);
-
-                // 3. บันทึกข้อมูลลงตาราง reviews บน Supabase
-                if (supabaseClient) {
-                    try {
-                        await supabaseClient.from('reviews').insert([{
-                            place_id: currentPlace.id,
-                            user_name: newReviewObj.user_name,
-                            user_avatar: String(newReviewObj.user_avatar).slice(0, 250),
-                            rating: newReviewObj.rating,
-                            comment: newReviewObj.comment,
-                            image_urls: newReviewObj.image_urls
-                        }]);
-                    } catch (dbErr) {
-                        console.warn('Supabase review insert note:', dbErr);
-                    }
-                }
+                await loadAllReviews();
 
                 reviewForm.reset();
                 if (loggedInGoogleProfile && reviewerNameInput) reviewerNameInput.value = loggedInGoogleProfile.fullName;
@@ -2346,13 +2188,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         async function fetchAndRenderMapData() {
             let places = [];
+            let loadError = null;
             if (typeof supabaseClient !== 'undefined' && supabaseClient) {
                 try {
                     const { data, error } = await supabaseClient.from('places').select('*');
-                    if (!error && data && data.length > 0) places = data;
-                } catch (err) { console.error('เกิดข้อผิดพลาดในการโหลดข้อมูลแผนที่:', err); }
+                    if (error) throw error;
+                    places = Array.isArray(data) ? data : [];
+                } catch (err) { loadError = err; console.error('เกิดข้อผิดพลาดในการโหลดข้อมูลแผนที่:', err); }
+            } else {
+                loadError = new Error('ไม่สามารถเชื่อมต่อฐานข้อมูลได้');
             }
-            if (places.length === 0) places = mockPlaces;
+            if (places.length === 0) {
+                mapElement.insertAdjacentHTML('afterend', loadError
+                    ? '<p class="data-state data-state-error">ไม่สามารถโหลดข้อมูลร้านค้าบนแผนที่ได้</p>'
+                    : '<p class="data-state">ยังไม่มีร้านค้าที่มีพิกัดสำหรับแสดงบนแผนที่</p>');
+                return;
+            }
 
             places.forEach(place => {
                 const mapUrl = place.google_map || place['google map'] || '';
@@ -2458,11 +2309,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     const cat = document.getElementById('new-place-category').value;
                     if (supabaseClient) {
                         try {
-                            await supabaseClient.from('places').insert([{
+                            const { error } = await supabaseClient.from('places').insert([{
                                 name: name,
                                 category: cat,
                                 'google map': `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
                             }]);
+                            if (error) throw error;
                             showToast('เพิ่มร้านค้าลงบนแผนที่สำเร็จ!');
                             fetchAndRenderMapData();
                         } catch (err) { showToast('ข้อผิดพลาด: ' + err.message, 'fa-triangle-exclamation'); }
@@ -2494,16 +2346,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (randomPageCount) randomPageCount.textContent = getRandomHistory().length;
 
         const getAvailableShops = async () => {
-            let shops = mockPlaces;
-            if (supabaseClient) {
-                try {
-                    const { data } = await supabaseClient.from('places').select('*');
-                    if (data && data.length > 0) shops = data;
-                } catch (error) {
-                    console.error(error);
-                }
-            }
-            return shops;
+            if (!supabaseClient) throw new Error('ไม่สามารถเชื่อมต่อฐานข้อมูลได้');
+            const { data, error } = await supabaseClient.from('places').select('*');
+            if (error) throw error;
+            return Array.isArray(data) ? data : [];
         };
 
         const getShopCategory = (shop) => String(shop.category || '').trim();
@@ -2524,7 +2370,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Categories are read from the same shop collection used by the randomizer,
         // avoiding a second, hard-coded category list that can drift from real data.
-        getAvailableShops().then(populateCategoryFilter);
+        getAvailableShops().then(populateCategoryFilter).catch(() => {
+            if (randomStatus) randomStatus.textContent = 'ไม่สามารถโหลดร้านค้าสำหรับการสุ่มได้';
+            btnRandom.disabled = true;
+        });
 
         // A Fisher-Yates deck guarantees one equally likely pass through every eligible shop
         // before a shop can appear again. Keeping the last card out of the next deck's first
@@ -2577,7 +2426,13 @@ document.addEventListener('DOMContentLoaded', () => {
             isDrawing = true;
             const catFilter = categorySelect?.value || 'all';
             const priceFilter = document.getElementById('random-price').value;
-            const availableShops = await getAvailableShops();
+            let availableShops;
+            try { availableShops = await getAvailableShops(); }
+            catch (error) {
+                showToast('ไม่สามารถโหลดร้านค้าสำหรับการสุ่มได้', 'fa-triangle-exclamation');
+                isDrawing = false;
+                return;
+            }
             populateCategoryFilter(availableShops);
 
             let filtered = availableShops.filter(shop => {
@@ -2667,25 +2522,53 @@ document.addEventListener('DOMContentLoaded', () => {
         let selectedCategory = 'all';
         let userCoordinates = null;
 
+        const getEventWindow = (item) => {
+            const startRaw = item.start_at || item.starts_at || item.start_date || item.dateTime || item.date_time;
+            const endRaw = item.end_at || item.ends_at || item.end_date;
+            const start = startRaw ? new Date(startRaw) : null;
+            let end = endRaw ? new Date(endRaw) : null;
+            if (!end && start && !Number.isNaN(start.valueOf())) {
+                end = new Date(start);
+                end.setHours(23, 59, 59, 999);
+            }
+            return { start: start && !Number.isNaN(start.valueOf()) ? start : null, end: end && !Number.isNaN(end.valueOf()) ? end : null };
+        };
+        const getEventStatus = (item) => {
+            const { start, end } = getEventWindow(item);
+            const now = new Date();
+            if (end && end < now) return { key: 'expired', text: 'สิ้นสุดแล้ว', className: 'status-expired' };
+            if (start && start > now) return { key: 'upcoming', text: '⏳ เร็วๆ นี้', className: 'status-upcoming' };
+            if (start && (!end || end >= now)) return { key: 'ongoing', text: '🔥 กำลังจัดอยู่', className: 'status-ongoing' };
+            return { key: 'upcoming', text: 'กำหนดการรอยืนยัน', className: 'status-upcoming' };
+        };
+
         const loadRealEvents = async () => {
-            if (!supabaseClient || !eventsGrid) return;
+            if (!eventsGrid) return;
+            eventsGrid.innerHTML = '<p class="data-state">กำลังโหลดกิจกรรม...</p>';
             try {
+                if (!supabaseClient) throw new Error('ไม่สามารถเชื่อมต่อฐานข้อมูลได้');
                 const { data: events, error } = await supabaseClient.from('events').select('*').order('created_at', { ascending: false });
-                if (error || !events || events.length === 0) return;
+                if (error) throw error;
 
                 eventsGrid.innerHTML = '';
                 const categoryNames = { food: 'อาหาร & ตลาดนัด', sports: 'กีฬา & กิจกรรม', promo: 'โปรโมชันส่วนลด', concert: 'คอนเสิร์ต & ดนตรี' };
 
-                events.forEach(item => {
+                const activeEvents = (events || []).filter(item => getEventStatus(item).key !== 'expired');
+                if (!activeEvents.length) {
+                    eventsGrid.innerHTML = '<p class="data-state">ยังไม่มีกิจกรรมที่กำลังจะมาถึง</p>';
+                    return;
+                }
+                activeEvents.forEach(item => {
+                    const status = getEventStatus(item);
                     const card = document.createElement('div');
                     card.className = 'event-card';
-                    card.dataset.category = item.category || 'food';
+                    card.dataset.category = `${item.category || 'food'} ${status.key}`;
                     if (item.lat && item.lng) { card.dataset.lat = item.lat; card.dataset.lng = item.lng; }
 
                     card.innerHTML = `
                         <div class="event-img-wrapper">
-                            <img src="${item.image_url || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600'}" alt="${item.title}">
-                            <span class="event-status-badge status-upcoming">⏳ เร็วๆ นี้</span>
+                            <img src="${item.image_url || ''}" alt="${item.title || 'กิจกรรม'}" onerror="this.closest('.event-img-wrapper').classList.add('image-unavailable'); this.remove();">
+                            <span class="event-status-badge ${status.className}">${status.text}</span>
                             <span class="event-cat-badge">${categoryNames[item.category] || 'กิจกรรม'}</span>
                         </div>
                         <div class="event-body">
@@ -2699,7 +2582,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     eventsGrid.appendChild(card);
                 });
                 applyEventFilters();
-            } catch (_) {}
+            } catch (error) {
+                console.error('Events fetch error:', error);
+                eventsGrid.innerHTML = '<p class="data-state data-state-error">ไม่สามารถโหลดกิจกรรมได้ กรุณาลองใหม่อีกครั้ง</p>';
+            }
         };
 
         const distanceInKm = (a, b) => {
@@ -2712,7 +2598,7 @@ document.addEventListener('DOMContentLoaded', () => {
         function applyEventFilters() {
             const maxDistance = (!distanceSelect || distanceSelect.value === 'all') ? null : Number(distanceSelect.value);
             document.querySelectorAll('.event-card').forEach(card => {
-                const matchCat = selectedCategory === 'all' || (card.dataset.category || '').includes(selectedCategory);
+                const matchCat = selectedCategory === 'all' || (card.dataset.category || '').split(' ').includes(selectedCategory);
                 const lat = Number(card.dataset.lat), lng = Number(card.dataset.lng);
                 const hasCoords = !Number.isNaN(lat) && !Number.isNaN(lng);
                 const matchDist = !maxDistance || !hasCoords || (userCoordinates && distanceInKm(userCoordinates, { lat, lng }) <= maxDistance);
@@ -2763,7 +2649,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (btn) { btn.disabled = true; btn.textContent = 'กำลังบันทึก...'; }
 
                 try {
-                    await supabaseClient.from('events').insert([{
+                    const { error } = await supabaseClient.from('events').insert([{
                         title: formData.get('title'),
                         description: formData.get('description'),
                         location: formData.get('location'),
@@ -2771,6 +2657,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         dateTime: formData.get('dateTime'),
                         user_id: session.user.id
                     }]);
+                    if (error) throw error;
                     activityForm.reset();
                     if (activityDialog) activityDialog.close();
                     loadRealEvents();

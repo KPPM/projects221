@@ -1721,6 +1721,10 @@ html, body {
 #detail-page .detail-live-status.is-closed { background: #f1f3f5; color: #68707a; }
 #detail-page.dark-mode .detail-live-status.is-open { background: #14532d; color: #dcfce7; }
 #detail-page.dark-mode .detail-live-status.is-closed { background: #343a40; color: #d0d5da; }
+.data-state { grid-column: 1 / -1; width: 100%; box-sizing: border-box; text-align: center; color: var(--text-muted); padding: 32px 16px; border: 1px dashed var(--border-color); border-radius: 12px; }
+.data-state-error { color: var(--primary-red); }
+.event-img-wrapper.image-unavailable { min-height: 120px; background: var(--input-bg); }
+.event-img-wrapper.image-unavailable::after { content: 'ไม่มีรูปภาพกิจกรรม'; display: grid; place-items: center; height: 120px; color: var(--text-muted); font-size: 13px; }
 
 @media (max-width: 1024px) {
     .search-page .container { gap: 18px; padding: 0 20px; }
@@ -1732,6 +1736,15 @@ html, body {
 }
 
 @media (max-width: 700px) {
+    .navbar { flex-wrap: wrap; padding: 12px 16px; gap: 10px; }
+    .nav-links { order: 3; display: flex; width: 100%; overflow-x: auto; white-space: nowrap; }
+    .nav-links a { flex: 0 0 auto; margin: 0 9px; }
+    .header-right { min-width: 0; gap: 7px; }
+    .events-header { align-items: flex-start; gap: 12px; }
+    .event-tags-filter { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
+    .tag-pill { flex: 0 0 auto; }
+    .event-distance-filter { align-items: stretch; }
+    .event-distance-filter select, .event-distance-filter button { width: 100%; }
     .search-page .navbar, #detail-page .navbar { flex-wrap: wrap; gap: 10px; padding: 12px 16px; }
     .search-page .nav-links, #detail-page .nav-links { order: 3; display: flex; width: 100%; overflow-x: auto; white-space: nowrap; }
     .search-page .nav-links a, #detail-page .nav-links a { flex: 0 0 auto; margin: 0 10px; }
