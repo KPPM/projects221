@@ -35,6 +35,7 @@
         <div class="detail-header-card">
             <div class="detail-cover">
                 <img id="detail-cover-image" referrerpolicy="no-referrer" hidden alt="สถานที่">
+                <div id="google-place-photo-credit" class="google-place-photo-credit" hidden></div>
                 <div class="detail-cover-overlay">
                     <div class="detail-cover-badges">
                         <span id="detail-category" class="detail-tag" style="margin-bottom: 0;">สถานที่</span>
@@ -135,7 +136,7 @@
                         </div>
                     </div>
                     
-                    <div style="width: 100%; height: 220px; border-radius: 8px; overflow: hidden; margin-bottom: 12px; border: 1px solid var(--border-color);">
+                    <div id="detail-map-panel" style="width: 100%; height: 220px; border-radius: 8px; overflow: hidden; margin-bottom: 12px; border: 1px solid var(--border-color);">
                         <iframe id="detail-map"
                             src="about:blank"
                             width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy">
@@ -146,21 +147,18 @@
                         <i class="fa-solid fa-location-arrow" style="color: var(--primary-red);"></i> เปิดพิกัดใน Google Maps
                     </a>
 
-                    <button id="google-place-load" type="button" class="map-control-btn" hidden>โหลดข้อมูลจาก Google Maps</button>
+                    <button id="google-place-load" type="button" class="map-control-btn" hidden>อัปเดตข้อมูล Google Maps</button>
+                    <p id="google-place-message" class="google-place-message" aria-live="polite" hidden></p>
+                    <p id="google-place-terms" class="google-place-message" hidden>
+                        <a href="https://maps.google.com/help/terms_maps/" target="_blank" rel="noopener">ข้อกำหนด Google Maps</a> ·
+                        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">นโยบายความเป็นส่วนตัวของ Google</a>
+                    </p>
 
                     <a href="review.html" class="btn-primary-red" style="display: block; width: 100%; text-align: center; text-decoration: none; box-sizing: border-box; padding: 12px;">เขียนรีวิว / ดูรีวิวทั้งหมด</a>
                 </div>
             </div>
         </div>
     </div>
-
-    <dialog id="google-place-dialog" class="google-place-dialog">
-        <form method="dialog"><button type="submit" class="map-control-btn">ปิด</button></form>
-        <h2>ข้อมูลจาก <span class="google-maps-attribution" translate="no">Google Maps</span></h2>
-        <div id="google-place-result" aria-live="polite"></div>
-        <p><a href="https://maps.google.com/help/terms_maps/" target="_blank" rel="noopener">ข้อกำหนด Google Maps</a> ·
-            <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">นโยบายความเป็นส่วนตัวของ Google</a></p>
-    </dialog>
 
     <footer class="footer-simple">
         © 2026 TU Aroi (UniDirectory). Built for the academic community.

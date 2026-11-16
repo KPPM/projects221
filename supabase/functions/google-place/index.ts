@@ -72,10 +72,10 @@ Deno.serve(async (request) => {
         if (!id) return respond({ code: "no_place_id" }, 404);
         if (!await reserve("details", detailsLimit)) return respond({ code: "quota" }, 429);
 
-        const detailsResponse = await fetch(googleBase + "places/" + id, {
+        const detailsResponse = await fetch(googleBase + "places/" + id + "?languageCode=th", {
             headers: {
                 "X-Goog-Api-Key": googleKey,
-                "X-Goog-FieldMask": "displayName,formattedAddress,nationalPhoneNumber,regularOpeningHours,priceRange,googleMapsUri,photos,attributions",
+                "X-Goog-FieldMask": "displayName,nationalPhoneNumber,currentOpeningHours,regularOpeningHours,businessStatus,googleMapsUri,photos,attributions",
             },
             redirect: "error",
             signal: AbortSignal.timeout(8000),
@@ -104,10 +104,16 @@ Deno.serve(async (request) => {
 
         return respond({
             name: details.displayName?.text,
-            address: details.formattedAddress,
             phone: details.nationalPhoneNumber,
-            hours: details.regularOpeningHours?.weekdayDescriptions,
-            price: details.priceRange,
+            hours: details.currentOpeningHours?.weekdayDescriptions?.length
+                ? details.currentOpeningHours.weekdayDescriptions
+                : details.regularOpeningHours?.weekdayDescriptions,
+            hoursType: details.currentOpeningHours?.weekdayDescriptions?.length ? "current" : "regular",
+            openNow: details.currentOpeningHours?.openNow,
+            nextOpenTime: details.currentOpeningHours?.nextOpenTime,
+            nextCloseTime: details.currentOpeningHours?.nextCloseTime,
+            businessStatus: details.businessStatus,
+            fetchedAt: new Date().toISOString(),
             mapsUrl: details.googleMapsUri,
             attributions: details.attributions || [],
             photo: photoUri ? { uri: photoUri, authors: photo.authorAttributions || [] } : null,

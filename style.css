@@ -1784,16 +1784,14 @@ html, body {
     #detail-page .hours-row > span:last-child { text-align: right; }
 }
 
-.google-place-dialog {
-    width: min(92vw, 520px); max-height: 85vh; overflow: auto;
-    padding: 20px; border: 1px solid var(--border-color); border-radius: 14px;
-    color: var(--text-main); background: var(--card-bg);
-}
-.google-place-dialog::backdrop { background: rgba(0, 0, 0, .72); }
-.google-place-dialog form { display: flex; justify-content: flex-end; }
-.google-place-dialog img { max-width: 100%; height: auto; }
-.google-place-dialog figure { margin: 12px 0; }
-.google-place-dialog figcaption a { margin-inline-end: 8px; }
 #google-place-load { margin-bottom: 12px; }
-#google-place-load[hidden] { display: none; }
-.google-maps-attribution { color: var(--text-main); font-weight: 400; white-space: nowrap; }
+#google-place-load[hidden], .google-place-photo-credit[hidden] { display: none; }
+.google-place-message { color: var(--text-muted); }
+.google-maps-attribution { font-weight: 400; white-space: nowrap; }
+.google-place-photo-credit {
+    position: absolute; top: 10px; right: 10px; z-index: 1;
+    max-width: calc(100% - 20px); border-radius: 6px; padding: 4px 8px;
+    background: #fff; color: #1f1f1f; font-size: 12px;
+}
+.google-place-photo-credit a { color: inherit; }
+#detail-hours-value ul { margin: 8px 0; padding-inline-start: 20px; }
