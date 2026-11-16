@@ -288,23 +288,6 @@ body.dark-mode .card-info .store-status.is-closed { background: #343a40; color: 
 .detail-header-card { background: var(--card-bg); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 16px var(--shadow-color); margin-bottom: 25px; border: 1px solid var(--border-color); }
 .detail-cover { position: relative; width: 100%; height: 380px; }
 .detail-cover img { width: 100%; height: 100%; object-fit: cover; }
-.place-image-missing {
-    display: grid; place-items: center; min-height: 80px; padding: 8px;
-    background: var(--input-bg); color: var(--text-muted); font-size: 12px; text-align: center;
-}
-.place-image-missing[hidden], img[hidden] { display: none !important; }
-.card-image > .place-image-missing, .detail-cover > .place-image-missing { height: 100%; }
-.detail-cover > .place-image-missing {
-    align-content: start; justify-items: start; gap: 6px; padding: 16px;
-}
-.detail-cover > .place-image-missing a {
-    position: relative; z-index: 1; color: var(--text-main); text-decoration: underline;
-}
-.search-page .discovery-card-back > .place-image-missing { flex: 0 0 82px; margin: 0; }
-.random-page .card-back > .place-image-missing { min-height: 96px; }
-.leaflet-popup-content .place-image-missing, .leaflet-popup-content img[referrerpolicy] {
-    width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;
-}
 .detail-cover-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 30px; background: linear-gradient(transparent, rgba(0,0,0,0.85)); color: #fff; }
 .detail-tag { background: var(--primary-red); color: #fff; font-size: 11px; padding: 4px 10px; border-radius: 6px; display: inline-block; margin-bottom: 8px; }
 
@@ -1782,41 +1765,4 @@ html, body {
     #detail-page .info-box { padding: 16px; margin-bottom: 16px; }
     #detail-page .hours-row { gap: 10px; align-items: flex-start; }
     #detail-page .hours-row > span:last-child { text-align: right; }
-}
-
-#google-place-load { margin-bottom: 12px; }
-#google-place-load[hidden], .google-place-photo-credit[hidden] { display: none; }
-.google-place-message { color: var(--text-muted); }
-.google-maps-attribution { font-weight: 400; white-space: nowrap; }
-.google-place-photo-credit {
-    position: absolute; top: 10px; right: 10px; z-index: 1;
-    max-width: calc(100% - 20px); border-radius: 6px; padding: 4px 8px;
-    background: #fff; color: #1f1f1f; font-size: 12px;
-}
-.google-place-photo-credit a { color: inherit; }
-#detail-hours-value ul { margin: 8px 0; padding-inline-start: 20px; }
-
-.card-google-photo-credit {
-    display: block;
-    margin: 4px 8px;
-    color: var(--text-muted);
-    font-size: 0.75rem;
-    overflow-wrap: anywhere;
-}
-.card-google-photo-credit a {
-    color: inherit;
-    text-decoration: underline;
-}
-
-.random-page .card-wrapper {
-    height: 560px;
-}
-
-.random-page .card-back .card-body {
-    min-height: 0;
-    overflow-y: auto;
-}
-
-.random-page .card-back .card-meta-list {
-    margin: 8px 0;
 }
