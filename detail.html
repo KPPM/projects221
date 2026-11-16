@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google-maps-embed-key" content="">
     <title id="detail-page-title">รายละเอียดสถานที่ - TU Aroi</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
@@ -137,8 +138,8 @@
                     </div>
                     
                     <div id="detail-map-panel" style="width: 100%; height: 220px; border-radius: 8px; overflow: hidden; margin-bottom: 12px; border: 1px solid var(--border-color);">
-                        <iframe id="detail-map"
-                            src="about:blank"
+                        <iframe id="detail-map" title="แผนที่ร้านค้า"
+                            src="about:blank" referrerpolicy="strict-origin-when-cross-origin"
                             width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy">
                         </iframe>
                     </div>

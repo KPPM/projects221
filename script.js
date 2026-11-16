@@ -1506,6 +1506,26 @@ document.addEventListener('DOMContentLoaded', () => {
         load();
     }
 
+    function getStoreEmbedUrl(place, coords) {
+        const supplied = httpUrl(place.google_maps_embed_url);
+        if (supplied) {
+            try {
+                const url = new URL(supplied);
+                if (url.origin === 'https://www.google.com' && url.pathname === '/maps/embed'
+                    && url.searchParams.get('pb')) return url.href;
+            } catch { /* A malformed URL can use the configured Embed API instead. */ }
+        }
+
+        const key = document.querySelector('meta[name="google-maps-embed-key"]')?.content.trim();
+        if (!key) return '';
+        const placeId = String(place.google_place_id || '').trim();
+        const target = /^[A-Za-z0-9_-]{8,300}$/.test(placeId) ? `place_id:${placeId}`
+            : coords ? `${coords.lat},${coords.lng}` : '';
+        if (!target) return '';
+        const params = new URLSearchParams({ key, q: target, language: 'th' });
+        return `https://www.google.com/maps/embed/v1/place?${params}`;
+    }
+
     const loadPlaceDetail = async () => {
         const detailPage = document.getElementById('detail-page');
         if (!detailPage) return;
@@ -1617,6 +1637,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const photoCredit = document.getElementById('google-place-photo-credit');
         const mapPanel = document.getElementById('detail-map-panel');
+        const embedUrl = getStoreEmbedUrl(place, coords);
         const timeFormat = new Intl.DateTimeFormat('th-TH', {
             timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short',
         });
@@ -1649,7 +1670,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (coverImgEl.getAttribute('src') === coverImgUrl) {
                     coverImgEl.onerror = () => {
                         showCoverPhoto(photoUrl, sourceUrl, authors);
-                        if (mapPanel) mapPanel.hidden = true;
+                        if (mapPanel && !embedUrl) mapPanel.hidden = true;
                     };
                 }
             }
@@ -1700,7 +1721,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (hasHours || hasStatus || usingGooglePhoto || data.phone) {
                 const terms = document.getElementById('google-place-terms');
                 if (terms) terms.hidden = false;
-                if (mapPanel) mapPanel.hidden = true;
+                if (mapPanel && !embedUrl) mapPanel.hidden = true;
                 if (gmapLink && sourceUrl) {
                     gmapLink.href = sourceUrl;
                     gmapLink.textContent = 'เปิดร้านนี้บน Google Maps';
@@ -1758,7 +1779,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // แผนที่ Leaflet เฉพาะร้าน
         const mapIframe = document.getElementById('detail-map');
-        if (mapIframe && (!coords || typeof L === 'undefined')) {
+        if (mapIframe && embedUrl) {
+            mapIframe.src = embedUrl;
+        } else if (mapIframe && (!coords || typeof L === 'undefined')) {
             const message = document.createElement('p');
             message.className = 'data-state';
             message.textContent = coords ? 'โหลดแผนที่ไม่ได้' : 'ยังไม่มีข้อมูลพิกัดร้าน';
