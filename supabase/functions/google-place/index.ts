@@ -9,9 +9,10 @@ const googleBase = "https://places.googleapis.com/v1/";
 
 function limit(name: string) {
     const value = Number(Deno.env.get(name) || "0");
-    return Number.isInteger(value) && value >= 0 && value <= 386 ? value : 0;
+    return Number.isInteger(value) && value >= 0 && value <= 1000 ? value : 0;
 }
 
+const searchLimit = limit("GOOGLE_PLACES_SEARCH_LIMIT");
 const detailsLimit = limit("GOOGLE_PLACES_DETAILS_LIMIT");
 const photoLimit = limit("GOOGLE_PLACES_PHOTOS_LIMIT");
 
@@ -25,19 +26,136 @@ async function reserve(sku: "details" | "photo", max: number) {
     return data === true;
 }
 
-function placeIdFor(place: { google_place_id?: string; "google map"?: string; google_map?: string }) {
-    let id = place.google_place_id?.trim();
-    if (!id) {
-        try {
-            const url = new URL(place.google_map || place["google map"] || "");
-            if (url.protocol === "https:" && ["www.google.com", "maps.google.com", "google.com"].includes(url.hostname)) {
-                id = url.searchParams.get("query_place_id") || undefined;
-            }
-        } catch {
-            return null;
+type Store = {
+    id: number | string;
+    name?: string;
+    address?: string;
+    google_place_id?: string;
+    google_map?: string;
+    "google map"?: string;
+    lat?: number | string;
+    lng?: number | string;
+};
+type Coordinates = { latitude: number; longitude: number };
+type Candidate = {
+    id?: string;
+    displayName?: { text?: string };
+    formattedAddress?: string;
+    location?: Coordinates;
+};
+
+function validPlaceId(value?: string) {
+    return value && /^[A-Za-z0-9_-]{8,300}$/.test(value) ? value : null;
+}
+
+function placeIdFor(place: Store) {
+    const saved = validPlaceId(place.google_place_id?.trim());
+    if (saved) return saved;
+    try {
+        const url = new URL(place.google_map || place["google map"] || "");
+        if (url.protocol === "https:" && ["www.google.com", "maps.google.com", "google.com"].includes(url.hostname)) {
+            return validPlaceId(url.searchParams.get("query_place_id") || undefined);
         }
+    } catch { /* This row has no usable Google Maps URL. */ }
+    return null;
+}
+
+function storeCoordinates(place: Store): Coordinates | null {
+    const url = (place.google_map || place["google map"] || "").replace(/%2C/ig, ",");
+    const pin = url.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
+    const query = url.match(/[?&](?:query|q)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)(?=[&#]|$)/);
+    const addressPoint = place.address?.match(/\((-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\)/);
+    for (const pair of [[place.lat, place.lng], pin?.slice(1), query?.slice(1), addressPoint?.slice(1)]) {
+        if (!pair || pair.some(value => value == null || String(value).trim() === "")) continue;
+        const [latitude, longitude] = pair.map(Number);
+        if (Number.isFinite(latitude) && Number.isFinite(longitude)
+            && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180) return { latitude, longitude };
     }
-    return id && /^[A-Za-z0-9_-]{8,300}$/.test(id) ? id : null;
+    return null;
+}
+
+function normalizeText(value?: string) {
+    return (value || "").replace(/[·•]?\s*ลิงก์ที่เคยเข้าชม\s*$/u, "").normalize("NFKC").toLowerCase()
+        .replace(/[^\p{L}\p{M}\p{N}]/gu, "");
+}
+
+function isNearby(origin: Coordinates, point?: Coordinates) {
+    if (!point || !Number.isFinite(point.latitude) || !Number.isFinite(point.longitude)) return false;
+    const north = (point.latitude - origin.latitude) * 111320;
+    const east = (point.longitude - origin.longitude) * 111320 * Math.cos(origin.latitude * Math.PI / 180);
+    return Math.hypot(north, east) <= 150;
+}
+
+function matchPlace(place: Store, candidates: Candidate[], coords: Coordinates | null) {
+    const name = normalizeText(place.name);
+    const address = normalizeText(place.address);
+    const matches = new Set<string>();
+    for (const candidate of candidates) {
+        const id = validPlaceId(candidate.id);
+        if (!id || normalizeText(candidate.displayName?.text) !== name) continue;
+        const sameAddress = address.length >= 12 && /\d/.test(address)
+            && normalizeText(candidate.formattedAddress) === address;
+        if (coords ? isNearby(coords, candidate.location) : sameAddress) matches.add(id);
+    }
+    return matches.size === 1 ? [...matches][0] : null;
+}
+
+async function discoverPlace(place: Store) {
+    const coords = storeCoordinates(place);
+    const address = normalizeText(place.address);
+    if (!normalizeText(place.name) || (!coords && (address.length < 12 || !/\d/.test(address)))) {
+        return { code: "no_place_id" };
+    }
+    if (!searchLimit) return { code: "search_disabled" };
+
+    const { data: claim, error } = await server.rpc("reserve_google_place_search", {
+        p_place: place.id,
+        p_limit: searchLimit,
+    });
+    if (error) throw new Error("Unable to reserve Places search quota");
+    if (claim === "already_linked") {
+        const { data: linked, error: readError } = await server.from("places").select("google_place_id")
+            .eq("id", place.id).eq("is_mock", false).maybeSingle();
+        if (readError) throw readError;
+        return { id: validPlaceId(linked?.google_place_id) };
+    }
+    if (claim !== "reserved") return { code: String(claim || "no_place_id") };
+
+    const response = await fetch(googleBase + "places:searchText", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": googleKey!,
+            "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location",
+        },
+        body: JSON.stringify({
+            textQuery: [place.name?.replace(/[·•]?\s*ลิงก์ที่เคยเข้าชม\s*$/u, ""), place.address].filter(Boolean).join(" ").slice(0, 300),
+            languageCode: "th",
+            regionCode: "TH",
+            pageSize: 10,
+            ...(coords ? { locationBias: { circle: { center: coords, radius: 300 } } } : {}),
+        }),
+        redirect: "error",
+        signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) return { code: "google_error" };
+    const result = await response.json();
+    const id = matchPlace(place, Array.isArray(result.places) ? result.places : [], coords);
+    if (!id) return { code: "no_place_id" };
+
+    // Persist only the Place ID. Keep any mapping an administrator just set.
+    const update = server.from("places").update({ google_place_id: id })
+        .eq("id", place.id).eq("is_mock", false);
+    const guardedUpdate = place.google_place_id == null
+        ? update.is("google_place_id", null)
+        : update.eq("google_place_id", place.google_place_id);
+    const { data: linked, error: writeError } = await guardedUpdate.select("google_place_id").maybeSingle();
+    if (writeError) throw writeError;
+    if (linked) return { id: validPlaceId(linked.google_place_id) };
+    const { data: current, error: readError } = await server.from("places").select("google_place_id")
+        .eq("id", place.id).eq("is_mock", false).maybeSingle();
+    if (readError) throw readError;
+    return { id: validPlaceId(current?.google_place_id) };
 }
 
 Deno.serve(async (request) => {
@@ -68,8 +186,17 @@ Deno.serve(async (request) => {
         const { data: place, error } = await server.from("places").select("*")
             .eq("id", localId).eq("is_mock", false).maybeSingle();
         if (error) throw new Error("Place lookup failed");
-        const id = place && placeIdFor(place);
-        if (!id) return respond({ code: "no_place_id" }, 404);
+        if (!place) return respond({ code: "no_place_id" }, 404);
+        let id = placeIdFor(place);
+        if (!id) {
+            const discovered = await discoverPlace(place);
+            id = discovered.id || null;
+            if (!id) {
+                const code = discovered.code || "no_place_id";
+                return respond({ code }, code === "search_quota" ? 429
+                    : code === "google_error" ? 502 : code === "search_disabled" ? 503 : 404);
+            }
+        }
         if (!await reserve("details", detailsLimit)) return respond({ code: "quota" }, 429);
 
         const detailsResponse = await fetch(googleBase + "places/" + id + "?languageCode=th", {
@@ -85,7 +212,8 @@ Deno.serve(async (request) => {
 
         const photo = details.photos?.[0];
         let photoUri = null;
-        if (photo?.name && /^places\/[A-Za-z0-9_-]+\/photos\/[A-Za-z0-9_-]+$/.test(photo.name)
+        if (photo?.name && photo.name.startsWith(`places/${id}/photos/`)
+            && /^places\/[A-Za-z0-9_-]+\/photos\/[A-Za-z0-9_-]+$/.test(photo.name)
             && await reserve("photo", photoLimit)) {
             // Return Google's temporary media URL, never persist it or forward the API key.
             const photoUrl = new URL(googleBase + photo.name + "/media");
@@ -103,6 +231,7 @@ Deno.serve(async (request) => {
         }
 
         return respond({
+            placeId: id,
             name: details.displayName?.text,
             phone: details.nationalPhoneNumber,
             hours: details.currentOpeningHours?.weekdayDescriptions?.length

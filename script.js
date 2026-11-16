@@ -1460,21 +1460,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function bindGooglePlaceDetails(place, mapsUrl, onDetails) {
+    function bindGooglePlaceDetails(place, onDetails) {
         const button = document.getElementById('google-place-load');
         const message = document.getElementById('google-place-message');
         if (!button || !message || !supabaseClient) return;
-        let verifiedId = place.google_place_id?.trim();
-        if (!verifiedId && mapsUrl) {
-            try { verifiedId = new URL(mapsUrl).searchParams.get('query_place_id'); }
-            catch { return; }
-        }
-        if (!verifiedId) return;
+        if (!place.id) return;
 
         const messages = {
             quota: 'ถึงเพดานคำขอ Google Maps แล้ว',
             disabled: 'ระบบดึงข้อมูลจาก Google Maps ยังไม่ได้เปิดใช้งาน',
-            no_place_id: 'ยังไม่มีรหัสสาขาที่ตรวจสอบแล้ว',
+            no_place_id: 'ยังจับคู่สาขานี้กับ Google Maps ไม่ได้',
+            search_disabled: 'ยังไม่ได้เปิดการค้นหาสาขาอัตโนมัติ',
+            search_quota: 'ถึงเพดานค้นหาสาขา Google Maps แล้ว',
+            lookup_cooldown: 'เพิ่งค้นหาสาขานี้ ให้เปิดใหม่สักครู่หากกำลังจับคู่ หรือใช้ลิงก์ Google Maps ด้านล่าง',
             login: 'กรุณาเข้าสู่ระบบก่อนอัปเดตข้อมูล Google Maps',
         };
         const load = async () => {
@@ -1637,7 +1635,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const photoCredit = document.getElementById('google-place-photo-credit');
         const mapPanel = document.getElementById('detail-map-panel');
-        const embedUrl = getStoreEmbedUrl(place, coords);
+        let embedUrl = getStoreEmbedUrl(place, coords);
+        let leafletMap = null;
+        const loadEmbeddedMap = () => {
+            if (!mapPanel || !embedUrl) return;
+            if (leafletMap) {
+                leafletMap.remove();
+                leafletMap = null;
+            }
+            const frame = document.createElement('iframe');
+            frame.id = 'detail-map';
+            frame.title = 'แผนที่ร้านค้า Google Maps';
+            frame.width = '100%';
+            frame.height = '100%';
+            frame.style.border = '0';
+            frame.loading = 'lazy';
+            frame.referrerPolicy = 'strict-origin-when-cross-origin';
+            frame.allowFullscreen = true;
+            frame.src = embedUrl;
+            mapPanel.replaceChildren(frame);
+            mapPanel.hidden = false;
+        };
         const timeFormat = new Intl.DateTimeFormat('th-TH', {
             timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short',
         });
@@ -1657,8 +1675,13 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         };
 
-        bindGooglePlaceDetails(place, mapsUrl, data => {
+        bindGooglePlaceDetails(place, data => {
             googleDetails = data;
+            const resolvedEmbedUrl = getStoreEmbedUrl({ ...place, google_place_id: data.placeId || place.google_place_id }, coords);
+            if (resolvedEmbedUrl && resolvedEmbedUrl !== embedUrl) {
+                embedUrl = resolvedEmbedUrl;
+                loadEmbeddedMap();
+            }
             const sourceUrl = httpUrl(data.mapsUrl) || mapsUrl;
             const attributions = Array.isArray(data.attributions) ? data.attributions : [];
             const photoUrl = httpUrl(data.photo?.uri);
@@ -1795,6 +1818,7 @@ document.addEventListener('DOMContentLoaded', () => {
             mapIframe.replaceWith(mapContainer);
 
             const map = L.map('detail-leaflet-map').setView([coords.lat, coords.lng], 16);
+            leafletMap = map;
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
             const redIcon = L.icon({
                 iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
