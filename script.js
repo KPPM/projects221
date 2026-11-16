@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (existing) existing.remove();
         const toast = document.createElement('div');
         toast.className = 'toast-notification';
-        toast.innerHTML = `<i class="fa-solid ${icon}" style="color: var(--primary-red); font-size: 16px;"></i><span>${message}</span>`;
+        toast.innerHTML = `<i class="fa-solid ${icon}" style="color: var(--primary-red); font-size: 16px;"></i><span>${escapeHTML(message)}</span>`;
         document.body.appendChild(toast);
         setTimeout(() => {
             toast.style.opacity = '0';
@@ -157,13 +157,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. Shared display helpers (database data is the only restaurant source)
     // ==========================================
 
-    const FALLBACK_FOOD_IMAGES = [
-        'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&q=80&w=800',
-        'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&q=80&w=800',
-        'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&q=80&w=800',
-        'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=800'
-    ];
-
     function cleanTextValue(val) {
         if (val === null || val === undefined) return '';
         let s = String(val).trim();
@@ -172,133 +165,95 @@ document.addEventListener('DOMContentLoaded', () => {
         return s;
     }
 
-    // Store status is self-contained. Times use the visitor's local clock; an
-    // end time earlier than the start time represents overnight business hours.
-    function getLiveStoreStatus(place, now = new Date()) {
-        const toMinutes = (value) => {
-            const match = cleanTextValue(value).match(/^(\d{1,2}):(\d{2})$/);
-            if (!match) return null;
-            const hours = Number(match[1]);
-            const minutes = Number(match[2]);
-            return hours < 24 && minutes < 60 ? (hours * 60) + minutes : null;
+    function escapeHTML(value) {
+        return String(value ?? '').replace(/[&<>"']/g, character => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[character]);
+    }
+
+    const bangkokClock = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+    });
+
+    function normalizeStoreTime(value) {
+        const match = cleanTextValue(value).match(/^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/);
+        return match ? `${match[1].padStart(2, '0')}:${match[2]}` : '';
+    }
+
+    function getStoreHours(place) {
+        const opens = normalizeStoreTime(place.open || place.open_time || place.opening_time);
+        const closes = normalizeStoreTime(place.close || place.close_time || place.closing_time);
+        const times = [opens ? `เปิด ${opens}` : 'ไม่ทราบเวลาเปิด', closes ? `ปิด ${closes}` : 'ไม่ทราบเวลาปิด'];
+        return {
+            opens, closes,
+            label: opens || closes
+                ? times.join(' · ')
+                : cleanTextValue(place.open_close || place['open-close']) || 'ยังไม่มีข้อมูลเวลา'
         };
-        const openAt = toMinutes(place.open || place.open_time || place.opening_time);
-        const closeAt = toMinutes(place.close || place.close_time || place.closing_time);
-
-        if (openAt !== null && closeAt !== null) {
-            const currentTime = (now.getHours() * 60) + now.getMinutes();
-            const isOpen = openAt === closeAt
-                ? true // Same times represent a 24-hour business.
-                : closeAt > openAt
-                    ? currentTime >= openAt && currentTime < closeAt
-                    : currentTime >= openAt || currentTime < closeAt;
-            return { isOpen, hasHours: true };
-        }
-        if (openAt !== null) {
-            const currentTime = (now.getHours() * 60) + now.getMinutes();
-            return { isOpen: currentTime >= openAt && currentTime <= (22 * 60), hasHours: true };
-        }
-        if (typeof place.is_open === 'boolean') return { isOpen: place.is_open, hasHours: false };
-        const declaredStatus = String(place.status || '').trim().toLowerCase();
-        if (declaredStatus.includes('ปิด') || declaredStatus.includes('closed')) return { isOpen: false, hasHours: false };
-        return { isOpen: true, hasHours: false };
     }
 
-    // เลือกรูปค่ากลางที่ตรงกับประเภทร้านและชื่อร้านนั้นๆ (ใช้เฉพาะกรณีที่ร้านไม่มีรูปจาก Google Maps หรือลิงก์รูปเสีย)
-    function getRelevantFallbackImage(placeOrId) {
-        if (typeof placeOrId !== 'object' || placeOrId === null) {
-            const idx = Math.abs(Number(placeOrId) || 1) % FALLBACK_FOOD_IMAGES.length;
-            return FALLBACK_FOOD_IMAGES[idx];
+    function getLiveStoreStatus(place, now = new Date()) {
+        const declaredStatus = String(place.status ?? '').trim();
+        if (/ปิดถาวร|ปิดไปแล้ว|permanently closed/i.test(place.name || '')
+            || /^(ปิด|ปิดอยู่|ปิดแล้ว|ปิดถาวร|closed|permanently closed)$/i.test(declaredStatus)) return false;
+        if (/^(เปิด|เปิดอยู่|open)$/i.test(declaredStatus)) return true;
+        const { opens, closes } = getStoreHours(place);
+        if (opens && closes && opens !== closes) {
+            const currentTime = bangkokClock.format(now);
+            return closes > opens ? currentTime >= opens && currentTime < closes
+                : currentTime >= opens || currentTime < closes;
         }
-        const idNum = Math.abs(Number(placeOrId.id) || 1);
-        const name = String(placeOrId.name || '').toLowerCase();
-        const cat = String(placeOrId.category || '').toLowerCase();
-        const feat = String(placeOrId.features || '').toLowerCase();
-        const snip = String(placeOrId.review_snippet || '').toLowerCase();
-        const comm = String(placeOrId.review_comment || '').toLowerCase();
-        const text = `${name} ${cat} ${feat} ${snip} ${comm}`;
-
-        // 1. บอร์ดเกมคาเฟ่
-        if (text.includes('board') || text.includes('บอร์ดเกม') || text.includes('onboard') || text.includes('tsuki')) {
-            return 'https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?auto=format&fit=crop&q=80&w=800';
-        }
-        // 2. มัทฉะ / ชาเขียวญี่ปุ่น
-        if (text.includes('matcha') || text.includes('มัทฉะ') || text.includes('มัจฉะ') || text.includes('kojicha') || text.includes('after peach')) {
-            return 'https://images.unsplash.com/photo-1515823064-d6e0c04616a7?auto=format&fit=crop&q=80&w=800';
-        }
-        // 3. ชานมไข่มุก / ชาไทย / ชาผลไม้
-        if (text.includes('boba') || text.includes('ชาตรามือ') || text.includes('ชาดง') || text.includes('ชาใต้') || text.includes('ชานม') || text.includes('fucha') || text.includes('fu cha') || text.includes('snowtee') || text.includes('why cha') || text.includes('yen yen') || text.includes('yodcha') || text.includes('rakun') || text.includes('จง ชง ดี')) {
-            return 'https://images.unsplash.com/photo-1558857563-b371033873b8?auto=format&fit=crop&q=80&w=800';
-        }
-        // 4. นมสด / ปังปิ้ง / โทสต์ / บิงซู / ของหวาน
-        if (text.includes('นมสด') || text.includes('นอ•มอ•นม') || text.includes('น้ำนมหนม') || text.includes('บิงซู') || text.includes('โทสต์') || text.includes('ปังเย็น') || text.includes('sweet secret') || text.includes('เครป') || text.includes('ice house')) {
-            return 'https://images.unsplash.com/photo-1484723091739-30a097e8f929?auto=format&fit=crop&q=80&w=800';
-        }
-        // 5. น้ำผลไม้ปั่น / สมูทตี้
-        if (text.includes('ปั่นแหลก') || text.includes('น้ำผลไม้ปั่น') || text.includes('สมูทตี้') || text.includes('happy drink')) {
-            return 'https://images.unsplash.com/photo-1505252585461-04db1eb84625?auto=format&fit=crop&q=80&w=800';
-        }
-        // 6. เบเกอรี่ / เค้ก / โฮมคาเฟ่
-        if (text.includes('bakery') || text.includes('เบเกอรี่') || text.includes('bake@dome') || text.includes('เค้ก') || text.includes('ละเมียด') || text.includes('โทกิ')) {
-            return 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=800';
-        }
-        // 7. หมูกระทะ / ชาบู / ปิ้งย่าง / สุกี้
-        if (text.includes('หมูกระทะ') || text.includes('หมูกะทะ') || text.includes('ชาบู') || text.includes('shabu') || text.includes('ย่างเนย') || text.includes('ปิ้งย่าง') || text.includes('หม้อไฟ') || text.includes('จิ้มจุ่ม')) {
-            return 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=800';
-        }
-        // 8. อาหารญี่ปุ่น / ซูชิ / ซาชิมิ / ข้าวด้ง
-        if (text.includes('sushi') || text.includes('ซูชิ') || text.includes('ซาชิมิ') || text.includes('โอชิเน') || text.includes('ดงมาชิ') || text.includes('เทปันยากิ') || text.includes('ญี่ปุ่น')) {
-            return 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?auto=format&fit=crop&q=80&w=800';
-        }
-        // 9. สเต็ก / อิตาเลียน / พิซซ่า / ข้าวหน้าเนื้อ
-        if (text.includes('steak') || text.includes('สเต็ก') || text.includes('italian') || text.includes('พิซซ่า') || text.includes('พันเนื้อ') || text.includes('เนื้อดรายเอจ')) {
-            return 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&q=80&w=800';
-        }
-        // 10. ส้มตำ / ยำ / อาหารไทย / ตามสั่ง / ก๋วยเตี๋ยว / ข้าวมันไก่
-        if (text.includes('ส้มตำ') || text.includes('ยำ') || text.includes('ลาบ') || text.includes('กะเพรา') || text.includes('ข้าวมันไก่') || text.includes('ก๋วยเตี๋ยว') || text.includes('ครัว') || text.includes('บ้านจิบ') || text.includes('อาหารใต้') || text.includes('ตามสั่ง') || text.includes('กรีนแคนทีน')) {
-            return 'https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&q=80&w=800';
-        }
-        // 11. ตลาดนัดและคอมมูนิตี้มอลล์
-        if (cat.includes('ตลาด') || cat.includes('ศูนย์การค้า') || text.includes('market') || text.includes('พลาซา') || text.includes('u-village')) {
-            return 'https://images.unsplash.com/photo-1533105079780-92b9be482077?auto=format&fit=crop&q=80&w=800';
-        }
-        // 12. บาร์ / ผับ / ร้านนั่งชิล
-        if (cat.includes('บาร์') || cat.includes('ผับ') || text.includes('bar') || text.includes('club') || text.includes('วงเหล้า')) {
-            return 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&q=80&w=800';
-        }
-
-        // 13. คาเฟ่และร้านกาแฟทั่วไป (หมุนเวียนรูปร้านกาแฟ/เอสเปรสโซ่บาร์ที่ตรงหมวดหมู่คาเฟ่ 100%)
-        const cafePhotos = [
-            'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&q=80&w=800',
-            'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&q=80&w=800',
-            'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&q=80&w=800',
-            'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=800',
-            'https://images.unsplash.com/photo-1445116572660-236099ec97a0?auto=format&fit=crop&q=80&w=800',
-            'https://images.unsplash.com/photo-1521017432531-fbd92d768814?auto=format&fit=crop&q=80&w=800'
-        ];
-        return cafePhotos[idNum % cafePhotos.length];
+        return typeof place.is_open === 'boolean' ? place.is_open : null;
     }
 
-    // ดึงรูปหน้าปกเริ่มต้นจาก Google Maps ของแหล่งที่มาร้านนั้นๆ เป็นอันดับแรก
-    // หากร้านนั้นไม่มีรูป หรือลิงก์ไม่ใช่รูปภาพ ให้ใช้รูปค่ากลางที่เกี่ยวข้องกับร้านนั้นๆ แทน
-    function resolveHighResImage(rawUrl, placeOrSeed = 1) {
-        const fallback = getRelevantFallbackImage(placeOrSeed);
-        let urlCandidate = rawUrl;
-        if ((!urlCandidate || typeof urlCandidate !== 'string') && typeof placeOrSeed === 'object' && placeOrSeed !== null) {
-            urlCandidate = placeOrSeed.image_url || placeOrSeed.image || placeOrSeed.photo_url || placeOrSeed['รูป'] || '';
+    function httpUrl(value) {
+        const candidate = cleanTextValue(value);
+        return /^https?:\/\//i.test(candidate) ? candidate : '';
+    }
+
+    function getPlaceImage(place) {
+        return [place.image_url, place.image, place.photo_url, place['รูป']]
+            .map(httpUrl)
+            .find(url => url && !/default_user\.png|(?:instagram|tiktok|facebook)\.com\/|wongnai\.com\/restaurants\//i.test(url)) || '';
+    }
+
+    function placeImageHTML(url, alt, googlePhotoId = '') {
+        const placeholder = '<span class="place-image-missing"';
+        if (!url) return `${googlePhotoId ? `<img alt="${escapeHTML(alt)}" hidden referrerpolicy="no-referrer">` : ''}${placeholder}>ยังไม่มีรูปภาพ</span>`;
+        return `<img src="${escapeHTML(url)}" alt="${escapeHTML(alt)}" loading="lazy" referrerpolicy="no-referrer"
+            onerror="this.hidden=true; this.nextElementSibling.hidden=false;">${placeholder} hidden>โหลดรูปภาพไม่ได้</span>`;
+    }
+
+    function setPlaceImage(image, url, alt, mapsUrl = '') {
+        if (!image) return;
+        let placeholder = image.nextElementSibling;
+        if (!placeholder?.classList.contains('place-image-missing')) {
+            placeholder = document.createElement('span');
+            placeholder.className = 'place-image-missing';
+            image.insertAdjacentElement('afterend', placeholder);
         }
-        if (!urlCandidate || typeof urlCandidate !== 'string') return fallback;
-
-        const url = urlCandidate.trim();
-        if (!url || url === '·' || url === '-' || url.includes('default_user.png')) return fallback;
-
-        // หากเป็นลิงก์หน้าเว็บโซเชียลที่ไม่ใช่ไฟล์รูปภาพโดยตรง ให้ใช้รูปค่ากลางที่ตรงกับประเภทร้านแทน
-        if (url.includes('instagram.com/') || url.includes('tiktok.com/') || url.includes('facebook.com/') || url.includes('wongnai.com/restaurants/')) {
-            return fallback;
+        image.alt = alt || 'รูปสถานที่';
+        image.hidden = !url;
+        placeholder.hidden = Boolean(url);
+        const message = url ? 'โหลดรูปภาพไม่ได้' : 'ยังไม่มีรูปภาพ';
+        if (mapsUrl) {
+            const description = document.createElement('span');
+            description.textContent = message;
+            const source = document.createElement('a');
+            source.href = mapsUrl;
+            source.target = '_blank';
+            source.rel = 'noopener noreferrer';
+            source.textContent = 'ดูรูปและข้อมูลร้านบน Google Maps';
+            placeholder.replaceChildren(description, source);
+        } else {
+            placeholder.textContent = message;
         }
-
-        // ใช้ URL รูปจาก Google Maps (googleusercontent.com / streetviewpixels) ของร้านนั้นๆ เป็นอันดับแรกโดยไม่แก้ลายเซ็นพารามิเตอร์
-        return url;
+        image.onerror = () => {
+            image.hidden = true;
+            placeholder.hidden = false;
+        };
+        if (url) image.src = url;
+        else image.removeAttribute('src');
     }
 
     // คำนวณสัญลักษณ์ช่วงราคา ($ / $$ / $$$) และข้อความช่วงราคาบาท (S2-01)
@@ -323,129 +278,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getPriceDisplayInfo(place) {
-        let rawPrice = cleanTextValue(place.price_range || place.price);
-        const rawFeatures = cleanTextValue(place.features);
-        // กรณีข้อมูลใน DB สลับช่องระหว่าง price_range กับ features (เช่นใน places_rows.csv บางแถว)
-        if ((!rawPrice || !/\d|\$/.test(rawPrice)) && /฿|\d+\s*-\s*\d+/.test(rawFeatures)) {
-            rawPrice = rawFeatures;
-        }
-        const tiers = getPlacePriceTiers(rawPrice);
-        const symbol = tiers[0] || '$$';
-        let rangeLabel = rawPrice;
-        if (!rangeLabel || !/\d/.test(rangeLabel)) {
-            if (symbol === '$') rangeLabel = '฿40 - ฿100';
-            else if (symbol === '$$') rangeLabel = '฿100 - ฿200';
-            else rangeLabel = '฿200 - ฿500+';
-        }
+        const validPrice = value => /^(?:[$]{1,3}|฿?\s*\d[\d,]*(?:\s*[-–]\s*฿?\s*\d[\d,]*)?\s*\+?\s*(?:บาท)?)$/.test(value);
+        const value = [place.price_range, place.price].map(cleanTextValue).find(validPrice);
         return {
-            symbol,
-            rangeLabel,
-            fullLabel: `${symbol} (${rangeLabel})`
+            symbol: value ? getPlacePriceTiers(value)[0] : '',
+            fullLabel: value || 'ยังไม่มีข้อมูลราคา'
         };
     }
 
-    // ดึงหรือสร้างเบอร์โทรศัพท์ร้านค้า (S2-01)
     function getPlacePhone(place) {
-        const directPhone = cleanTextValue(place.phone || place.phone_number || place.tel);
-        if (directPhone) return directPhone;
-
-        // ค้นหาเบอร์โทรหากแทรกอยู่ใน address หรือ review_comment
-        const combined = `${place.address || ''} ${place.review_comment || ''} ${place.features || ''}`;
-        const match = combined.match(/(0\d{1,2}[-\s]?\d{3}[-\s]?\d{3,4})/);
-        if (match) return match[1];
-
-        // เบอร์โทรศัพท์อ้างอิงตามโซนร้านค้ารอบ มธ. รังสิต (กรณีคอลัมน์ใน Supabase ไม่มีเบอร์โทรโดยตรง)
-        const idNum = Math.abs(Number(place.id) || 1);
-        const directoryPhones = [
-            '02-564-4440 (ติดต่อศูนย์บริการ มธ.)',
-            '089-813-6364',
-            '081-562-3646',
-            '084-761-6259',
-            '083-093-4541',
-            '098-251-7896',
-            '065-356-9211',
-            '080-959-1556',
-            '095-610-9571',
-            '087-325-1711'
-        ];
-        return directoryPhones[idNum % directoryPhones.length];
+        return cleanTextValue(place.phone || place.phone_number || place.tel) || 'ยังไม่มีข้อมูลเบอร์โทรศัพท์';
     }
 
-    // ดึงที่อยู่ฉบับสมบูรณ์ (S2-01)
     function getPlaceAddress(place) {
-        const rawAddr = cleanTextValue(place.address || place.location);
-        if (!rawAddr) {
-            return 'บริเวณมหาวิทยาลัยธรรมศาสตร์ ศูนย์รังสิต ต.คลองหนึ่ง อ.คลองหลวง จ.ปทุมธานี 12120';
-        }
-        if (!rawAddr.includes('ปทุมธานี') && !rawAddr.includes('คลองหลวง') && rawAddr.length < 35) {
-            return `${rawAddr} มธ. รังสิต ต.คลองหนึ่ง อ.คลองหลวง จ.ปทุมธานี 12120`;
-        }
-        return rawAddr;
+        return cleanTextValue(place.address || place.location) || 'ยังไม่มีข้อมูลที่อยู่';
     }
 
-    // ดึงเมนูแนะนำและจุดเด่นร้านค้าจากข้อมูลจริงใน Supabase (S2-01)
     function getPlaceRecommendedMenus(place) {
-        if (Array.isArray(place.popular_menus) && place.popular_menus.length > 0) {
-            return place.popular_menus;
-        }
-
-        const cat = (place.category || '').toLowerCase();
-        const name = (place.name || '');
-        const rawFeatures = cleanTextValue(place.features);
-        const rawSnippet = cleanTextValue(place.review_snippet);
-        const rawComment = cleanTextValue(place.review_comment);
-        const combinedText = `${name} ${rawFeatures} ${rawSnippet} ${rawComment}`;
-
-        // แยกรายการจาก features หากคั่นด้วยลูกน้ำ (,)
-        const featureParts = rawFeatures
-            .split(',')
-            .map(s => s.trim())
-            .filter(s => s.length > 2 && !/฿|\d+-\d+|เหมาะกับ|ที่จอดรถ|ห้องแอร์|เปิดดึก|ซื้อกลับ|จัดส่ง|ร้าน/.test(s));
-
-        let menuItems = [];
-
-        if (featureParts.length >= 2) {
-            menuItems = featureParts.slice(0, 4).map((itemName, idx) => ({
-                name: itemName,
-                price: idx === 0 ? 'แนะนำ' : 'ยอดฮิต',
-                image: FALLBACK_FOOD_IMAGES[(Number(place.id || 1) + idx) % FALLBACK_FOOD_IMAGES.length]
-            }));
-        } else if (cat.includes('คาเฟ่') || combinedText.includes('กาแฟ') || combinedText.includes('ชา') || combinedText.includes('นม')) {
-            if (combinedText.includes('มัทฉะ') || combinedText.includes('Matcha')) {
-                menuItems = [
-                    { name: 'พรีเมียมมัทฉะลาเต้', price: '75 ฿', image: 'https://images.unsplash.com/photo-1515823064-d6e0c04616a7?auto=format&fit=crop&q=80&w=400' },
-                    { name: 'โฮจิฉะนมสด', price: '70 ฿', image: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&q=80&w=400' },
-                    { name: 'เค้กโฮมเมด / เบเกอรี่', price: '85 ฿', image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&q=80&w=400' }
-                ];
-            } else if (combinedText.includes('นมสด') || combinedText.includes('ปัง')) {
-                menuItems = [
-                    { name: 'ปังโทสต์สังขยา / ไอศกรีม', price: '89 ฿', image: 'https://images.unsplash.com/photo-1484723091739-30a097e8f929?auto=format&fit=crop&q=80&w=400' },
-                    { name: 'นมสดพระนครเย็น', price: '45 ฿', image: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&q=80&w=400' },
-                    { name: 'ปังเย็นภูเขาไฟ', price: '99 ฿', image: 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?auto=format&fit=crop&q=80&w=400' }
-                ];
-            } else {
-                menuItems = [
-                    { name: 'Iced Americano / Espresso', price: '60 ฿', image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&q=80&w=400' },
-                    { name: 'Signature Dirty / Latte', price: '80 ฿', image: 'https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=400' },
-                    { name: 'ชาไทยพรีเมียม / โกโก้เข้มข้น', price: '55 ฿', image: 'https://images.unsplash.com/photo-1558857563-b371033873b8?auto=format&fit=crop&q=80&w=400' },
-                    { name: 'ครัวซองต์อบสด / เบเกอรี่', price: '65 ฿', image: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=400' }
-                ];
-            }
-        } else if (cat.includes('บาร์') || cat.includes('ผับ')) {
-            menuItems = [
-                { name: 'เซตกับแกล้มซิกเนเจอร์', price: '159 ฿', image: 'https://images.unsplash.com/photo-1541544741938-0af808871cc0?auto=format&fit=crop&q=80&w=400' },
-                { name: 'เอ็นข้อไก่ทอด / เฟรนช์ฟรายส์', price: '99 ฿', image: 'https://images.unsplash.com/photo-1576107232684-1279f3908594?auto=format&fit=crop&q=80&w=400' },
-                { name: 'เครื่องดื่มม็อกเทล & คราฟต์โซดา', price: '120 ฿', image: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&q=80&w=400' }
-            ];
-        } else {
-            menuItems = [
-                { name: 'เมนูซิกเนเจอร์ประจำร้าน', price: '65 ฿', image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=400' },
-                { name: 'ชุดอิ่มคุ้มขวัญใจนักศึกษา', price: '89 ฿', image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&q=80&w=400' },
-                { name: 'ของทานเล่นและเครื่องดื่ม', price: '45 ฿', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=400' }
-            ];
-        }
-
-        return menuItems;
+        if (!Array.isArray(place.popular_menus)) return [];
+        return place.popular_menus.map(item => typeof item === 'string' ? { name: item } : item)
+            .filter(item => item && typeof item.name === 'string' && item.name.trim());
     }
 
     function getPlaceSummaryText(place) {
@@ -459,26 +311,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (parts.length > 0) {
             return parts.join(' • ').replace(/\s+/g, ' ').trim();
         }
-        return `${place.name} (${place.category || 'ร้านค้า'}) ย่านมหาวิทยาลัยธรรมศาสตร์ ศูนย์รังสิต`;
-    }
-
-    function parseReviewCountNumber(rawCount) {
-        if (typeof rawCount === 'number' && !Number.isNaN(rawCount)) return rawCount;
-        if (!rawCount) return 0;
-        const cleaned = String(rawCount).replace(/,/g, '');
-        const match = cleaned.match(/\d+/);
-        return match ? parseInt(match[0], 10) : 0;
+        return 'ยังไม่มีข้อมูลรายละเอียดร้าน';
     }
 
     function getEffectivePlaceRatingAndCount(place) {
-        const baseRating = place.rating !== null && place.rating !== undefined && place.rating !== ''
-            ? parseFloat(place.rating)
-            : 0;
-        const baseCount = parseReviewCountNumber(place.review_count);
+        const rating = String(place.rating ?? '').trim();
+        const count = String(place.review_count ?? '').trim().replace(/,/g, '');
         return {
-            rating: Number.isNaN(baseRating) ? 0 : Number(baseRating.toFixed(1)),
-            reviewCount: Math.max(0, baseCount)
+            rating: rating && Number.isFinite(Number(rating)) && Number(rating) >= 0 && Number(rating) <= 5 ? Number(rating) : null,
+            reviewCount: /^\d+$/.test(count) ? Number(count) : null
         };
+    }
+
+    function placeRatingText(rating, reviewCount) {
+        if (rating === null) return reviewCount === null ? 'ยังไม่มีข้อมูลคะแนน' : `ยังไม่มีข้อมูลคะแนน (${reviewCount} รีวิว)`;
+        return `★ ${rating}${reviewCount === null ? '' : ` (${reviewCount} รีวิว)`}`;
     }
 
     // ==========================================
@@ -521,19 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const addRandomHistory = async (place) => {
         if (!place || !place.id) return;
-        const priceInfo = getPriceDisplayInfo(place);
-        const { rating } = getEffectivePlaceRatingAndCount(place);
-        const entry = {
-            id: place.id,
-            name: place.name || 'ร้านค้า',
-            category: place.category || 'ร้านอาหารและคาเฟ่',
-            rating: rating || '4.5',
-            price_range: priceInfo.fullLabel,
-            image_url: resolveHighResImage(place.image_url, place),
-            address: getPlaceAddress(place),
-            phone: getPlacePhone(place),
-            randomized_at: new Date().toISOString()
-        };
+        const entry = { id: place.id, randomized_at: new Date().toISOString() };
 
         let history = getRandomHistory();
         // ลบรายการซ้ำของร้านเดิมก่อนแทรกไว้บนสุดเพื่อแสดงเวลาสุ่มล่าสุด
@@ -710,23 +545,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const savedPlaces = getSavedPlaces();
         const isSaved = savedPlaces.includes(String(place.id));
         const heartClass = isSaved ? 'fa-solid fa-heart saved' : 'fa-regular fa-heart';
-        const badgeDiscountHTML = place.discount ? `<span class="badge badge-discount">${place.discount}</span>` : '';
+        const badgeDiscountHTML = place.discount ? `<span class="badge badge-discount">${escapeHTML(place.discount)}</span>` : '';
 
         const priceInfo = getPriceDisplayInfo(place);
         const { rating, reviewCount } = getEffectivePlaceRatingAndCount(place);
-        const imgUrl = resolveHighResImage(place.image_url, place);
-        const fallbackImg = getRelevantFallbackImage(place);
+        const imgUrl = getPlaceImage(place);
+        const googlePhotoId = /^[A-Za-z0-9_-]{8,300}$/.test(place.google_place_id || '')
+            ? String(place.id) : '';
+        const openStatus = place.currently_open ?? getLiveStoreStatus(place);
+        const hoursLabel = escapeHTML(getStoreHours(place).label);
         const addressText = getPlaceAddress(place);
         const phoneText = getPlacePhone(place);
         const menus = getPlaceRecommendedMenus(place);
-        const topMenuNames = menus.slice(0, 2).map(m => m.name).join(', ');
+        const topMenuNames = menus.slice(0, 2).map(m => m.name).join(', ') || 'ยังไม่มีข้อมูลเมนู';
 
         const historyBadgeHTML = extraMeta.randomizedAt
             ? `<div class="history-time-badge"><i class="fa-solid fa-dice" style="color: var(--primary-red);"></i> สุ่มเมื่อ: ${new Date(extraMeta.randomizedAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })}</div>`
-            : '';
-
-        const distanceBadge = (place.distance_km !== undefined && place.distance_km !== 999)
-            ? `ห่าง ${place.distance_km} กม. • `
             : '';
 
         return `
@@ -736,43 +570,144 @@ document.addEventListener('DOMContentLoaded', () => {
                 </button>
                 <a href="detail.html?id=${place.id}" style="text-decoration: none; color: inherit;">
                     <div class="card">
-                        <div class="card-image">
-                            <img src="${imgUrl}" alt="${place.name}" referrerpolicy="no-referrer" loading="lazy" onerror="this.onerror=null; this.src='${fallbackImg}';">
-                            <span class="badge badge-rating">★ ${rating} (${reviewCount})</span>
-                            <span class="badge badge-price-tier">${priceInfo.symbol}</span>
+                        <div class="card-image" data-photo-id="${escapeHTML(googlePhotoId)}" data-image-source="${escapeHTML(imgUrl)}">
+                            ${placeImageHTML(imgUrl, place.name, googlePhotoId)}
+                            <span class="badge badge-rating">${placeRatingText(rating, reviewCount)}</span>
                             ${badgeDiscountHTML}
                         </div>
                         <div class="card-info">
                             ${historyBadgeHTML}
                             <div class="card-info-header">
-                                <h3 style="margin-bottom: 2px;">${place.name}</h3>
+                                <h3 style="margin-bottom: 2px;">${escapeHTML(place.name || 'ยังไม่มีข้อมูลชื่อร้าน')}</h3>
                             </div>
-                            ${typeof place.currently_open === 'boolean' ? `<span class="store-status ${place.currently_open ? 'is-open' : 'is-closed'}">${place.currently_open ? 'Open Now' : 'Closed'}</span>` : ''}
-                            <p class="desc" style="margin-bottom: 6px;">${place.category || 'ร้านอาหารและคาเฟ่'}</p>
+                            <span data-google-field="status" class="store-status ${openStatus === null ? '' : openStatus ? 'is-open' : 'is-closed'}">${openStatus === null ? 'ยังไม่ทราบสถานะ' : openStatus ? 'Open Now' : 'Closed'}</span>
+                            <p class="desc" style="margin-bottom: 6px;">${escapeHTML(place.category || 'ยังไม่มีข้อมูลหมวดหมู่')}</p>
                             
                             <div class="card-meta-list">
-                                <div class="card-meta-item" title="เมนูแนะนำ: ${topMenuNames}">
+                                <div class="card-meta-item" title="เมนูแนะนำ: ${escapeHTML(topMenuNames)}">
                                     <i class="fa-solid fa-utensils"></i>
-                                    <span><strong>เมนูแนะนำ:</strong> ${topMenuNames}</span>
+                                    <span><strong>เมนูแนะนำ:</strong> ${escapeHTML(topMenuNames)}</span>
                                 </div>
-                                <div class="card-meta-item" title="เบอร์โทรศัพท์: ${phoneText}">
+                                <div class="card-meta-item" title="เบอร์โทรศัพท์: ${escapeHTML(phoneText)}">
                                     <i class="fa-solid fa-phone"></i>
-                                    <span>${phoneText}</span>
+                                    <span data-google-field="phone">${escapeHTML(phoneText)}</span>
                                 </div>
-                                <div class="card-meta-item" title="ที่อยู่: ${addressText}">
+                                <div class="card-meta-item" title="ที่อยู่: ${escapeHTML(addressText)}">
                                     <i class="fa-solid fa-location-dot"></i>
-                                    <span>${distanceBadge}${addressText}</span>
+                                    <span data-google-field="address">${escapeHTML(addressText)}</span>
                                 </div>
                             </div>
 
                             <div class="card-footer">
-                                <span><i class="fa-regular fa-clock"></i> ${cleanTextValue(place.open) ? `${cleanTextValue(place.open)}${cleanTextValue(place.close) && cleanTextValue(place.close) !== '0:00' ? ' - ' + cleanTextValue(place.close) : ''}` : 'เปิดทุกวัน'}</span>
-                                <span class="price">${priceInfo.fullLabel}</span>
+                                <span title="${hoursLabel}"><i class="fa-regular fa-clock"></i> <span data-google-field="hours">${hoursLabel}</span></span>
+                                <span class="price" data-google-field="price">${escapeHTML(priceInfo.fullLabel)}</span>
                             </div>
                         </div>
                     </div>
                 </a>
             </div>`;
+    }
+
+    let googleCardQueue = Promise.resolve();
+    let googleCardDetailsLimited = false;
+    let googleCardPhotosLimited = false;
+
+    function updateGoogleCardFields(card, data) {
+        const day = new Intl.DateTimeFormat('th-TH', { weekday: 'long', timeZone: 'Asia/Bangkok' }).format(new Date());
+        const hours = Array.isArray(data.hours) && data.hours.find(value => value.startsWith(day + ':'));
+        const status = getGoogleOpeningStatus(data);
+        const { startPrice, endPrice } = data.priceRange || {};
+        const money = value => value?.currencyCode === 'THB' && value.units != null
+            ? Number(value.units) + (Number(value.nanos) || 0) / 1e9 : NaN;
+        const start = money(startPrice);
+        const end = money(endPrice);
+        const price = Number.isFinite(start) && Number.isFinite(end)
+            ? `${start.toLocaleString('th-TH')}–${end.toLocaleString('th-TH')} บาท` : '';
+        const fields = { phone: data.phone, address: data.address, hours, price, status: status?.label };
+        for (const [key, value] of Object.entries(fields)) {
+            const field = card.querySelector(`[data-google-field="${key}"]`);
+            if (!field || !value) continue;
+            field.textContent = value;
+            field.title = value;
+            field.parentElement.title = value;
+            field.dataset.googleUpdated = 'true';
+            if (key === 'status') {
+                const nextChange = Date.parse(data.openNow ? data.nextCloseTime : data.nextOpenTime);
+                const fetched = Date.parse(data.fetchedAt);
+                field.dataset.googleExpires = String(Math.min(fetched + 15 * 60 * 1000,
+                    Number.isFinite(nextChange) ? nextChange : Infinity));
+                field.classList.toggle('is-open', status.isOpen === true);
+                field.classList.toggle('is-closed', status.isOpen === false);
+            }
+        }
+        return Boolean(card.querySelector('[data-google-updated]'));
+    }
+
+    function queueGoogleCard(panel, id, card, isCurrent = () => panel.isConnected) {
+        const image = panel.querySelector('img');
+        if (!image || !supabaseClient) return;
+        const request = (photoOnly = false) => {
+            googleCardQueue = googleCardQueue.then(async () => {
+                if (!isCurrent()) return;
+                const includePhoto = !googleCardPhotosLimited && (!image.hasAttribute('src') || image.hidden);
+                const onlyPhoto = photoOnly || googleCardDetailsLimited;
+                if (onlyPhoto && !includePhoto) return;
+                const { data: auth } = await supabaseClient.auth.getSession();
+                if (!auth?.session || !isCurrent()) return;
+                const { data, error } = await supabaseClient.functions.invoke('google-place', {
+                    body: { id, mode: onlyPhoto ? 'photo' : 'card', includePhoto },
+                });
+                if (error || !data) return;
+                if (data.detailsStatus === 'quota') googleCardDetailsLimited = true;
+                if (data.photoStatus === 'quota') googleCardPhotosLimited = true;
+                if (!isCurrent()) return;
+
+                const hasFields = !onlyPhoto && updateGoogleCardFields(card, data);
+                const url = httpUrl(data.photo?.uri);
+                if (!url && !hasFields) return;
+                const credit = document.createElement('small');
+                credit.className = 'card-google-photo-credit';
+                appendGoogleCredit(credit, httpUrl(data.mapsUrl), [
+                    ...(Array.isArray(data.attributions) ? data.attributions : []),
+                    ...(Array.isArray(data.photo?.authors) ? data.photo.authors : []),
+                ]);
+                const previous = card.querySelector('.card-google-photo-credit');
+                // A photo-only fallback keeps any attribution already shown for the details.
+                if (onlyPhoto && previous) previous.append(document.createTextNode(' · '), ...credit.childNodes);
+                else {
+                    previous?.remove();
+                    const actions = card.querySelector('.shop-actions');
+                    if (actions) actions.before(credit);
+                    else card.append(credit);
+                }
+                if (url) {
+                    setPlaceImage(image, url, image.alt);
+                    if (!hasFields && !previous) image.addEventListener('error', () => credit.remove(), { once: true });
+                }
+            }).catch(() => {
+                // Keep database values and the image placeholder when Google is unavailable.
+            });
+        };
+        if (image.hasAttribute('src') && !image.complete) {
+            image.addEventListener('error', () => request(true), { once: true });
+        }
+        request();
+    }
+
+    const photoObserver = typeof IntersectionObserver === 'function' ? new IntersectionObserver(entries => {
+        for (const { target, isIntersecting } of entries) {
+            if (!isIntersecting || !target.isConnected) continue;
+            photoObserver.unobserve(target);
+            queueGoogleCard(target, target.dataset.photoId, target.closest('.card-link'));
+        }
+    }) : null;
+
+    function observeGoogleCard(panel) {
+        photoObserver?.observe(panel);
+    }
+
+    function observeGoogleCards(grid) {
+        grid.querySelectorAll('[data-photo-id]:not([data-photo-id=""])').forEach(observeGoogleCard);
     }
 
     document.addEventListener('click', (e) => {
@@ -810,25 +745,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // ฟังก์ชันช่วยแยกพิกัด Lat/Lng จาก URL หรือที่อยู่ (รองรับทุกรูปแบบใน Supabase)
     // ==========================================
     function parseLatLngFromPlace(place) {
-        if (place.lat && place.lng && !Number.isNaN(Number(place.lat)) && !Number.isNaN(Number(place.lng))) {
-            return { lat: parseFloat(place.lat), lng: parseFloat(place.lng) };
+        const url = String(place.google_map || place['google map'] || '').replace(/%2C/gi, ',');
+        const address = String(place.address || '');
+        const pin = url.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
+        const query = url.match(/(?:[?&](?:query|q)=)(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)(?=[&#]|$)/);
+        const addressPoint = address.match(/\((-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\)/);
+        const candidates = [[place.lat, place.lng], pin?.slice(1), query?.slice(1), addressPoint?.slice(1)];
+        for (const pair of candidates) {
+            if (!pair || pair.some(value => value == null || String(value).trim() === '')) continue;
+            const [lat, lng] = pair.map(Number);
+            if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+                return { lat, lng };
+            }
         }
-        const url = String(place.google_map || place['google map'] || '');
-        const addr = String(place.address || '');
-
-        // รูปแบบที่ 1: !3d14.078!4d100.604
-        const m1Lat = url.match(/!3d(-?\d+\.\d+)/);
-        const m1Lng = url.match(/!4d(-?\d+\.\d+)/);
-        if (m1Lat && m1Lng) return { lat: parseFloat(m1Lat[1]), lng: parseFloat(m1Lng[1]) };
-
-        // รูปแบบที่ 2: query=14.0663,100.6093 หรือ @14.0663,100.6093
-        const m2 = url.match(/(?:query=|q=|@)(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
-        if (m2) return { lat: parseFloat(m2[1]), lng: parseFloat(m2[2]) };
-
-        // รูปแบบที่ 3: พิกัดในวงเล็บท้ายที่อยู่ (14.0663, 100.6093)
-        const m3 = addr.match(/\((-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\)/);
-        if (m3) return { lat: parseFloat(m3[1]), lng: parseFloat(m3[2]) };
-
         return null;
     }
 
@@ -1001,8 +930,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     ...place,
                     rating,
                     review_count: reviewCount,
-                    computed_distance: computedDistance !== undefined ? computedDistance : 999,
-                    currently_open: getLiveStoreStatus(place).isOpen
+                    computed_distance: Number.isFinite(computedDistance) ? computedDistance : null,
+                    currently_open: getLiveStoreStatus(place)
                 };
             });
 
@@ -1013,7 +942,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (searchQuery) {
                     const matchName = place.name ? place.name.toLowerCase().includes(searchQuery) : false;
                     const matchCat = place.category ? place.category.toLowerCase().includes(searchQuery) : false;
-                    const matchAddr = getPlaceAddress(place).toLowerCase().includes(searchQuery);
+                    const matchAddr = cleanTextValue(place.address || place.location).toLowerCase().includes(searchQuery);
                     const matchMenu = getPlaceRecommendedMenus(place).some(m => m.name.toLowerCase().includes(searchQuery));
                     if (!matchName && !matchCat && !matchAddr && !matchMenu) return false;
                 }
@@ -1032,7 +961,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (maxDistanceVal !== 'all') {
                     const limit = parseFloat(maxDistanceVal);
-                    if (place.computed_distance > limit) return false;
+                    if (place.computed_distance === null || place.computed_distance > limit) return false;
                 }
 
                 if (isRatingChecked && (place.rating === undefined || place.rating < 4.0)) return false;
@@ -1048,7 +977,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (sortVal === 'rating' || sortVal === 'คะแนนสูงสุด') {
                 currentFilteredPlaces.sort((a, b) => (b.rating || 0) - (a.rating || 0));
             } else if (sortVal === 'distance' || sortVal === 'ระยะทางใกล้ที่สุด') {
-                currentFilteredPlaces.sort((a, b) => a.computed_distance - b.computed_distance);
+                currentFilteredPlaces.sort((a, b) => (a.computed_distance ?? Infinity) - (b.computed_distance ?? Infinity));
             } else {
                 currentFilteredPlaces.sort((a, b) => Number(b.currently_open) - Number(a.currently_open));
             }
@@ -1063,19 +992,40 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         function renderPlaces() {
-            cardGrid.innerHTML = '';
+            const previousPhotos = new Map(Array.from(cardGrid.querySelectorAll('[data-photo-id]:not([data-photo-id=""])'),
+                panel => [panel.dataset.photoId, panel]));
             if (currentFilteredPlaces.length === 0) {
+                previousPhotos.forEach(panel => photoObserver?.unobserve(panel));
                 cardGrid.innerHTML = '<p style="grid-column: span 3; text-align: center; color: var(--text-muted); padding: 40px 0;">ไม่พบร้านค้าที่ตรงกับเงื่อนไข</p>';
                 const loadBtn = document.querySelector('.load-more-btn');
                 if (loadBtn) loadBtn.style.display = 'none';
                 return;
             }
 
-            const placesToShow = currentFilteredPlaces.slice(0, displayLimit);
-            placesToShow.forEach(place => {
-                const displayPlace = { ...place, distance_km: place.computed_distance !== 999 ? place.computed_distance : place.distance_km };
-                cardGrid.innerHTML += createCardHTML(displayPlace);
+            const template = document.createElement('template');
+            template.innerHTML = currentFilteredPlaces.slice(0, displayLimit)
+                .map(place => createCardHTML(place)).join('');
+            const newPhotos = [];
+            template.content.querySelectorAll('[data-photo-id]:not([data-photo-id=""])').forEach(panel => {
+                const previous = previousPhotos.get(panel.dataset.photoId);
+                if (previous?.dataset.imageSource === panel.dataset.imageSource) {
+                    previousPhotos.delete(panel.dataset.photoId);
+                    const oldCard = previous.closest('.card-link');
+                    const newCard = panel.closest('.card-link');
+                    oldCard.querySelectorAll('[data-google-updated]').forEach(field => {
+                        if (field.dataset.googleField === 'status' && Number(field.dataset.googleExpires) <= Date.now()) return;
+                        newCard.querySelector(`[data-google-field="${field.dataset.googleField}"]`)?.replaceWith(field);
+                    });
+                    const credit = oldCard.querySelector('.card-google-photo-credit');
+                    if (credit) newCard.append(credit);
+                    panel.replaceWith(previous);
+                } else {
+                    newPhotos.push(panel);
+                }
             });
+            previousPhotos.forEach(panel => photoObserver?.unobserve(panel));
+            cardGrid.replaceChildren(template.content);
+            newPhotos.forEach(observeGoogleCard);
 
             const loadBtn = document.querySelector('.load-more-btn');
             if (loadBtn) loadBtn.style.display = (displayLimit >= currentFilteredPlaces.length) ? 'none' : 'block';
@@ -1120,15 +1070,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             window.setTimeout(() => {
                 const image = document.getElementById('discovery-random-image');
-                if (image) {
-                    image.onerror = function () { this.onerror = null; this.src = getRelevantFallbackImage(selected); };
-                    image.src = resolveHighResImage(selected.image_url, selected);
-                }
+                setPlaceImage(image, getPlaceImage(selected), selected.name);
                 const title = document.getElementById('discovery-random-title');
                 const meta = document.getElementById('discovery-random-meta');
                 const link = document.getElementById('discovery-random-link');
-                if (title) title.textContent = selected.name || 'ร้านแนะนำสำหรับคุณ';
-                if (meta) meta.textContent = `${getDiscoveryCategory(selected) || 'ร้านค้า'} · ★ ${rating || '-'} · ${priceInfo.fullLabel}`;
+                if (title) title.textContent = selected.name || 'ยังไม่มีข้อมูลชื่อร้าน';
+                if (meta) meta.textContent = `${selected.category || 'ยังไม่มีข้อมูลหมวดหมู่'} · ${placeRatingText(rating, null)} · ${priceInfo.fullLabel}`;
                 if (link) link.href = `detail.html?id=${selected.id}`;
 
                 discoveryRandomStage?.classList.remove('is-shuffling');
@@ -1279,7 +1226,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 savedCardsGrid.innerHTML = '<p style="grid-column: span 3; text-align: center; color: var(--text-muted); padding: 40px 0;">ยังไม่มีรายการที่บันทึกไว้</p>';
                 return;
             }
-            savedPlacesData.forEach(place => { savedCardsGrid.innerHTML += createCardHTML(place); });
+            savedCardsGrid.innerHTML = savedPlacesData.map(place => createCardHTML(place)).join('');
+            observeGoogleCards(savedCardsGrid);
         };
         loadSavedPlaces();
     }
@@ -1289,8 +1237,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const randomHistoryCountEl = document.getElementById('random-history-count');
     const clearRandomHistoryBtn = document.getElementById('clear-random-history-btn');
 
-    const renderRandomHistorySection = () => {
+    let historyRequest = 0;
+    const renderRandomHistorySection = async () => {
         if (!randomHistoryGrid) return;
+        const request = ++historyRequest;
         const history = getRandomHistory();
         if (randomHistoryCountEl) randomHistoryCountEl.textContent = history.length;
 
@@ -1299,10 +1249,24 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        randomHistoryGrid.innerHTML = '';
-        history.forEach(item => {
-            randomHistoryGrid.innerHTML += createCardHTML(item, { randomizedAt: item.randomized_at });
-        });
+        randomHistoryGrid.innerHTML = '<p class="data-state">กำลังโหลดประวัติ...</p>';
+        try {
+            if (!supabaseClient) throw new Error('Supabase unavailable');
+            const { data, error } = await supabaseClient.from('places').select('*').in('id', history.map(item => item.id));
+            if (error) throw error;
+            if (request !== historyRequest) return;
+            const places = new Map((data || []).map(place => [String(place.id), place]));
+            const cards = history.map(item => {
+                const place = places.get(String(item.id));
+                return place ? createCardHTML(place, { randomizedAt: item.randomized_at }) : '';
+            }).join('');
+            randomHistoryGrid.innerHTML = cards || '<p class="data-state">ไม่พบร้านในประวัติที่ยังแสดงได้</p>';
+            observeGoogleCards(randomHistoryGrid);
+        } catch (error) {
+            if (request === historyRequest) {
+                randomHistoryGrid.innerHTML = '<p class="data-state data-state-error">โหลดประวัติร้านจากฐานข้อมูลไม่ได้</p>';
+            }
+        }
     };
 
     if (randomHistoryGrid) {
@@ -1478,27 +1442,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // 8. ระบบดึงข้อมูลร้าน (detail.html - S2-01) และ ระบบรีวิว Real-time (review.html & detail.html - S2-02)
     // ==========================================
     const urlParams = new URLSearchParams(window.location.search);
-    const globalPlaceId = urlParams.get('id') || '1';
+    const globalPlaceId = urlParams.get('id');
 
     // สร้าง HTML ของแต่ละรายการรีวิว (รองรับทั้งรูปโปรไฟล์ Google และตัวอักษรย่อ)
     function buildReviewItemHTML(review, isNewHighlight = false) {
-        const dateObj = review.created_at ? new Date(review.created_at) : new Date();
+        const dateObj = new Date(review.created_at || '');
         const dateStr = !Number.isNaN(dateObj.getTime())
             ? dateObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-            : 'เมื่อสักครู่';
-        const starCount = Math.min(5, Math.max(1, parseInt(review.rating, 10) || 5));
-        const stars = '⭐'.repeat(starCount) + '☆'.repeat(5 - starCount);
+            : 'ยังไม่มีข้อมูลวันที่';
+        const score = Number(review.rating);
+        const hasScore = Number.isInteger(score) && score >= 1 && score <= 5;
+        const stars = hasScore ? '⭐'.repeat(score) + '☆'.repeat(5 - score) : 'ยังไม่มีข้อมูลคะแนน';
 
-        let avatarHTML = `<div class="review-avatar">${(review.user_avatar || review.user_name || 'U').charAt(0).toUpperCase()}</div>`;
+        let avatarHTML = `<div class="review-avatar">${escapeHTML((review.user_avatar || review.user_name || 'U').charAt(0).toUpperCase())}</div>`;
         if (review.user_avatar && (String(review.user_avatar).startsWith('http') || String(review.user_avatar).startsWith('data:'))) {
-            avatarHTML = `<img src="${review.user_avatar}" alt="${review.user_name || 'User'}" referrerpolicy="no-referrer" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid var(--border-color);">`;
+            avatarHTML = `<img src="${escapeHTML(review.user_avatar)}" alt="${escapeHTML(review.user_name || 'User')}" referrerpolicy="no-referrer" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid var(--border-color);">`;
         }
 
         let imagesHTML = '';
         if (Array.isArray(review.image_urls) && review.image_urls.length > 0) {
             imagesHTML = '<div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">';
             review.image_urls.forEach(url => {
-                imagesHTML += `<img src="${url}" alt="Review photo" style="width:84px; height:84px; object-fit:cover; border-radius:8px; border:1px solid var(--border-color); cursor:pointer;" onclick="const cov=document.getElementById('detail-cover-image'); if(cov) cov.src=this.src;">`;
+                imagesHTML += `<img src="${escapeHTML(url)}" alt="Review photo" style="width:84px; height:84px; object-fit:cover; border-radius:8px; border:1px solid var(--border-color);">`;
             });
             imagesHTML += '</div>';
         }
@@ -1506,11 +1471,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return `
             <div class="review-item ${isNewHighlight ? 'new-review-highlight' : ''}">
                 <div class="review-header">
-                    <div class="review-user">${avatarHTML}<span>${review.user_name || 'นักศึกษา มธ.'}</span></div>
+                    <div class="review-user">${avatarHTML}<span>${escapeHTML(review.user_name || 'ยังไม่มีข้อมูลชื่อผู้รีวิว')}</span></div>
                     <span class="review-date" style="font-size: 12px; color: var(--text-muted);">${dateStr}</span>
                 </div>
-                <div class="review-stars">${stars} <span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">(${starCount}.0)</span></div>
-                <p class="review-text" style="margin-top: 6px;">${review.comment}</p>
+                <div class="review-stars">${stars}</div>
+                <p class="review-text" style="margin-top: 6px;">${escapeHTML(review.comment || 'ยังไม่มีข้อความรีวิว')}</p>
                 ${imagesHTML}
             </div>`;
     }
@@ -1525,14 +1490,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return Array.isArray(data) ? data : [];
     }
 
-    // คำนวณคะแนนดาวเฉลี่ยใหม่ทันทีที่มีการส่งรีวิว และอัปเดตทั้ง DOM + Supabase (S2-02)
-    async function recalculateAndSyncRating(place, newStarValue) {
-        const reviews = await fetchCombinedPlaceReviews(place);
-        const newCount = reviews.length;
-        const newAvg = newCount
-            ? Number((reviews.reduce((total, review) => total + Number(review.rating || 0), 0) / newCount).toFixed(1))
-            : 0;
+    // PostgreSQL updates the aggregate in the same transaction as the review.
+    async function refreshPlaceReviewStats(place) {
+        const { data, error } = await supabaseClient.from('places')
+            .select('rating, review_count').eq('id', place.id).single();
+        if (error) throw error;
+        const { rating: newAvg, reviewCount: newCount } = getEffectivePlaceRatingAndCount(data);
 
+        if (newAvg === null || newCount === null) throw new Error('Missing review summary');
         place.rating = newAvg;
         place.review_count = String(newCount);
 
@@ -1562,18 +1527,133 @@ document.addEventListener('DOMContentLoaded', () => {
         const reviewPageCount = document.getElementById('review-page-count');
         if (reviewPageCount) reviewPageCount.textContent = `(${newCount} รีวิว)`;
 
-        // อัปเดตกลับไปยังตาราง places บน Supabase
-        if (!supabaseClient) throw new Error('ไม่สามารถเชื่อมต่อฐานข้อมูลร้านค้าได้');
-        const { error } = await supabaseClient.from('places')
-            .update({ rating: newAvg, review_count: String(newCount) }).eq('id', place.id);
-        if (error) throw error;
-
         return { newAvg, newCount };
+    }
+
+    async function showSavedReviewStatus(place) {
+        try {
+            const { newAvg, newCount } = await refreshPlaceReviewStats(place);
+            showToast(`ส่งรีวิวสำเร็จ! คะแนนเฉลี่ย ⭐ ${newAvg.toFixed(1)} (${newCount} รีวิว)`);
+        } catch (error) {
+            console.error('Review saved, but rating refresh failed:', error);
+            showToast('บันทึกรีวิวแล้ว แต่โหลดคะแนนล่าสุดไม่ได้ กรุณารีเฟรชหน้า');
+        }
     }
 
     // ---------------------------------------------------------
     // 8.1 ฟังก์ชันสำหรับหน้า detail.html (S2-01 & S2-02)
     // ---------------------------------------------------------
+    function getGoogleOpeningStatus(data, now = Date.now()) {
+        const businessStatus = {
+            CLOSED_TEMPORARILY: 'ปิดชั่วคราว',
+            CLOSED_PERMANENTLY: 'ปิดถาวร',
+            FUTURE_OPENING: 'ยังไม่เปิดให้บริการ',
+        }[data?.businessStatus];
+        if (businessStatus) return { isOpen: false, label: businessStatus };
+        if (typeof data?.openNow !== 'boolean') return null;
+
+        const nextChange = Date.parse(data.openNow ? data.nextCloseTime : data.nextOpenTime);
+        const fetchedAt = Date.parse(data.fetchedAt);
+        const freshUntil = fetchedAt + 15 * 60 * 1000;
+        const expires = Number.isFinite(nextChange) ? Math.min(nextChange, freshUntil) : freshUntil;
+        if (!Number.isFinite(expires) || now >= expires) {
+            return { isOpen: null, label: 'กดอัปเดตเพื่อตรวจสถานะล่าสุด' };
+        }
+        return { isOpen: data.openNow, label: data.openNow ? 'เปิดอยู่' : 'ปิดอยู่' };
+    }
+
+    function appendGoogleCredit(parent, mapsUrl, authors = []) {
+        const brand = document.createElement(mapsUrl ? 'a' : 'span');
+        brand.className = 'google-maps-attribution';
+        brand.translate = false;
+        brand.textContent = 'Google Maps';
+        if (mapsUrl) {
+            brand.href = mapsUrl;
+            brand.target = '_blank';
+            brand.rel = 'noopener noreferrer';
+        }
+        parent.append(brand);
+        authors.forEach(author => {
+            const name = author?.displayName || author?.provider;
+            const url = httpUrl(author?.uri || author?.providerUri);
+            if (!name && !url) return;
+            const credit = document.createElement(url ? 'a' : 'span');
+            credit.textContent = name || 'ผู้ให้ข้อมูล';
+            if (url) {
+                credit.href = url;
+                credit.target = '_blank';
+                credit.rel = 'noopener noreferrer';
+            }
+            parent.append(document.createTextNode(' · '), credit);
+        });
+    }
+
+    function bindGooglePlaceDetails(place, onDetails) {
+        const button = document.getElementById('google-place-load');
+        const message = document.getElementById('google-place-message');
+        if (!button || !message || !supabaseClient) return;
+        if (!place.id) return;
+
+        const messages = {
+            quota: 'ถึงเพดานคำขอ Google Maps แล้ว',
+            disabled: 'ระบบดึงข้อมูลจาก Google Maps ยังไม่ได้เปิดใช้งาน',
+            no_place_id: 'ยังจับคู่สาขานี้กับ Google Maps ไม่ได้',
+            search_disabled: 'ยังไม่ได้เปิดการค้นหาสาขาอัตโนมัติ',
+            search_quota: 'ถึงเพดานค้นหาสาขา Google Maps แล้ว',
+            lookup_cooldown: 'เพิ่งค้นหาสาขานี้ ให้เปิดใหม่สักครู่หากกำลังจับคู่ หรือใช้ลิงก์ Google Maps ด้านล่าง',
+            login: 'กรุณาเข้าสู่ระบบก่อนอัปเดตข้อมูล Google Maps',
+        };
+        const load = async () => {
+            if (button.disabled) return;
+            button.disabled = true;
+            try {
+                const { data: sessionData } = await supabaseClient.auth.getSession();
+                if (!sessionData?.session) throw new Error(messages.login);
+
+                message.hidden = false;
+                message.textContent = 'กำลังโหลดข้อมูลจาก Google Maps…';
+                const { data, error } = await supabaseClient.functions.invoke('google-place', { body: { id: place.id } });
+                if (error || !data) {
+                    const failure = await error?.context?.json?.().catch(() => null);
+                    throw new Error(messages[failure?.code] || 'โหลดข้อมูลจาก Google Maps ไม่สำเร็จ');
+                }
+                onDetails(data);
+                const quotaMessage = data.detailsStatus === 'quota' || data.photoStatus === 'quota';
+                message.hidden = !quotaMessage;
+                if (quotaMessage) message.textContent = messages.quota;
+            } catch (error) {
+                message.hidden = false;
+                message.textContent = error.message || 'โหลดข้อมูลจาก Google Maps ไม่สำเร็จ';
+            } finally {
+                button.disabled = false;
+            }
+        };
+
+        button.hidden = false;
+        button.addEventListener('click', load);
+        load();
+    }
+
+    function getStoreEmbedUrl(place, coords) {
+        const supplied = httpUrl(place.google_maps_embed_url);
+        if (supplied) {
+            try {
+                const url = new URL(supplied);
+                if (url.origin === 'https://www.google.com' && url.pathname === '/maps/embed'
+                    && url.searchParams.get('pb')) return url.href;
+            } catch { /* A malformed URL can use the configured Embed API instead. */ }
+        }
+
+        const key = document.querySelector('meta[name="google-maps-embed-key"]')?.content.trim();
+        if (!key) return '';
+        const placeId = String(place.google_place_id || '').trim();
+        const target = /^[A-Za-z0-9_-]{8,300}$/.test(placeId) ? `place_id:${placeId}`
+            : coords ? `${coords.lat},${coords.lng}` : '';
+        if (!target) return '';
+        const params = new URLSearchParams({ key, q: target, language: 'th' });
+        return `https://www.google.com/maps/embed/v1/place?${params}`;
+    }
+
     const loadPlaceDetail = async () => {
         const detailPage = document.getElementById('detail-page');
         if (!detailPage) return;
@@ -1596,17 +1676,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const pageTitle = document.getElementById('detail-page-title');
         if (pageTitle) pageTitle.textContent = `${place.name} - TU Aroi`;
 
-        const relevantFallbackImg = getRelevantFallbackImage(place);
-        const coverImgUrl = resolveHighResImage(place.image_url, place);
+        const coords = parseLatLngFromPlace(place);
+        const mapsUrl = httpUrl(place.google_map || place['google map'])
+            || (coords ? `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}` : '');
+        const coverImgUrl = getPlaceImage(place);
         const coverImgEl = document.getElementById('detail-cover-image');
-        if (coverImgEl) {
-            coverImgEl.referrerPolicy = 'no-referrer';
-            coverImgEl.onerror = function () {
-                this.onerror = null;
-                this.src = relevantFallbackImg;
-            };
-            coverImgEl.src = coverImgUrl;
-        }
+        setPlaceImage(coverImgEl, coverImgUrl, place.name, mapsUrl);
 
         const { rating, reviewCount } = getEffectivePlaceRatingAndCount(place);
         const priceInfo = getPriceDisplayInfo(place);
@@ -1614,32 +1689,34 @@ document.addEventListener('DOMContentLoaded', () => {
         const phoneText = getPlacePhone(place);
         const summaryText = getPlaceSummaryText(place);
 
-        document.getElementById('detail-category').textContent = place.category || 'ร้านอาหารและคาเฟ่';
-        document.getElementById('detail-name').textContent = place.name;
+        document.getElementById('detail-category').textContent = place.category || 'ยังไม่มีข้อมูลหมวดหมู่';
+        document.getElementById('detail-name').textContent = place.name || 'ยังไม่มีข้อมูลชื่อร้าน';
         document.getElementById('detail-summary').textContent = summaryText;
 
         const ratingBadge = document.getElementById('detail-rating-badge');
-        if (ratingBadge) ratingBadge.textContent = `⭐ ${rating.toFixed(1)} (${reviewCount} รีวิว)`;
+        if (ratingBadge) ratingBadge.textContent = placeRatingText(rating, reviewCount);
 
         const priceBadge = document.getElementById('detail-price-badge');
         if (priceBadge) priceBadge.textContent = priceInfo.fullLabel;
 
         // Real-time open/closed indicator. The shared helper supports overnight
         // hours and is refreshed at each local minute boundary below.
-        const openTime = cleanTextValue(place.open || place.open_time);
-        const closeTime = cleanTextValue(place.close || place.close_time);
+        const hours = getStoreHours(place);
         const openBadge = document.getElementById('detail-open-badge');
+        let googleDetails = null;
         const updateDetailStoreStatus = () => {
-            const status = getLiveStoreStatus(place);
-            const statusText = status.isOpen ? 'Open' : 'Closed';
+            const googleStatus = getGoogleOpeningStatus(googleDetails);
+            const status = googleStatus ? googleStatus.isOpen : getLiveStoreStatus(place);
+            const statusText = googleStatus?.label || (status === null ? 'ยังไม่ทราบสถานะ' : status ? 'เปิดอยู่' : 'ปิดอยู่');
+            const displayStatus = googleStatus ? `${statusText} · Google Maps` : statusText;
             if (openBadge) {
-                openBadge.textContent = `● ${statusText}`;
-                openBadge.className = `detail-meta-pill ${status.isOpen ? 'status-open' : 'status-closed'}`;
-                openBadge.setAttribute('aria-label', `Store status: ${statusText}`);
+                openBadge.textContent = `● ${displayStatus}`;
+                openBadge.className = `detail-meta-pill ${status === null ? '' : status ? 'status-open' : 'status-closed'}`;
+                openBadge.setAttribute('aria-label', `สถานะร้าน ${displayStatus}`);
             }
             const liveStatusRow = document.getElementById('detail-live-store-status');
             if (liveStatusRow) {
-                liveStatusRow.innerHTML = `<span>สถานะปัจจุบัน</span><span class="detail-live-status ${status.isOpen ? 'is-open' : 'is-closed'}">${statusText}</span>`;
+                liveStatusRow.innerHTML = `<span>สถานะปัจจุบัน</span><span class="detail-live-status ${status === null ? '' : status ? 'is-open' : 'is-closed'}">${escapeHTML(displayStatus)}</span>`;
             }
         };
 
@@ -1651,7 +1728,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (phoneElement) {
             const dialable = phoneText.match(/0\d{1,2}[-\s]?\d{3}[-\s]?\d{3,4}/);
             if (dialable) {
-                phoneElement.innerHTML = `<a href="tel:${dialable[0].replace(/[-\s]/g, '')}" style="color: var(--primary-red); font-weight: 600; text-decoration: underline;">${phoneText}</a>`;
+                phoneElement.innerHTML = `<a href="tel:${dialable[0].replace(/[-\s]/g, '')}" style="color: var(--primary-red); font-weight: 600; text-decoration: underline;">${escapeHTML(phoneText)}</a>`;
             } else {
                 phoneElement.textContent = phoneText;
             }
@@ -1661,28 +1738,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (priceElement) priceElement.textContent = priceInfo.fullLabel;
 
         const gmapLink = document.getElementById('detail-gmap-link');
-        const rawMapUrl = place.google_map || place['google map'];
         if (gmapLink) {
-            gmapLink.href = rawMapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name + ' ธรรมศาสตร์ รังสิต')}`;
+            if (mapsUrl) {
+                gmapLink.href = mapsUrl;
+            } else {
+                gmapLink.removeAttribute('href');
+                gmapLink.textContent = 'ยังไม่มีข้อมูลพิกัด';
+            }
         }
 
         // เวลาทำการและรายละเอียดเพิ่มเติม
         const hoursContainer = document.getElementById('detail-hours');
         if (hoursContainer) {
-            const openClose = place.open_close || place['open-close'];
-            let hoursHTML = '';
-            hoursHTML += '<div id="detail-live-store-status" class="hours-row detail-live-store-status" aria-live="polite"></div>';
-            if (openTime && closeTime && closeTime !== '0:00') {
-                hoursHTML += `<div class="hours-row"><span>เวลาเปิด - ปิด (ทุกวัน)</span><span style="font-weight: bold; color: var(--text-main);">${openTime} - ${closeTime} น.</span></div>`;
-            } else if (openTime) {
-                hoursHTML += `<div class="hours-row"><span>เวลาเปิดทำการ</span><span style="font-weight: bold; color: var(--text-main);">${openTime} น. เป็นต้นไป</span></div>`;
-            } else if (openClose) {
-                hoursHTML += `<div class="hours-row"><span>เวลาทำการ</span><span style="font-weight: bold; color: var(--text-main);">${openClose}</span></div>`;
-            } else {
-                hoursHTML += `<div class="hours-row"><span>เวลาทำการ</span><span style="font-weight: bold; color: var(--text-main);">เปิดให้บริการทุกวัน (08:00 - 20:00 น.)</span></div>`;
-            }
-            hoursHTML += `<div class="hours-row"><span>ระดับราคา ($/$$/$$$)</span><span style="font-weight: bold; color: var(--accent-gold);">${priceInfo.fullLabel}</span></div>`;
-            hoursHTML += `<div class="hours-row"><span>เบอร์ติดต่อร้านค้า</span><span style="font-weight: bold; color: var(--text-main);">${phoneText}</span></div>`;
+            let hoursHTML = '<div id="detail-live-store-status" class="hours-row detail-live-store-status" aria-live="polite"></div>';
+            hoursHTML += `<div class="hours-row"><span>เวลาทำการ</span><span id="detail-hours-value">${escapeHTML(hours.label)}</span></div>`;
+            hoursHTML += `<div class="hours-row"><span>ช่วงราคา</span><span style="font-weight: bold; color: var(--accent-gold);">${escapeHTML(priceInfo.fullLabel)}</span></div>`;
+            hoursHTML += `<div class="hours-row"><span>เบอร์ติดต่อร้านค้า</span><span id="detail-hours-phone" style="font-weight: bold; color: var(--text-main);">${escapeHTML(phoneText)}</span></div>`;
             hoursContainer.innerHTML = hoursHTML;
         }
         updateDetailStoreStatus();
@@ -1692,20 +1763,132 @@ document.addEventListener('DOMContentLoaded', () => {
             setInterval(updateDetailStoreStatus, 60000);
         }, millisecondsToNextMinute);
 
+        const photoCredit = document.getElementById('google-place-photo-credit');
+        const mapPanel = document.getElementById('detail-map-panel');
+        let embedUrl = getStoreEmbedUrl(place, coords);
+        let leafletMap = null;
+        const loadEmbeddedMap = () => {
+            if (!mapPanel || !embedUrl) return;
+            if (leafletMap) {
+                leafletMap.remove();
+                leafletMap = null;
+            }
+            const frame = document.createElement('iframe');
+            frame.id = 'detail-map';
+            frame.title = 'แผนที่ร้านค้า Google Maps';
+            frame.width = '100%';
+            frame.height = '100%';
+            frame.style.border = '0';
+            frame.loading = 'lazy';
+            frame.referrerPolicy = 'strict-origin-when-cross-origin';
+            frame.allowFullscreen = true;
+            frame.src = embedUrl;
+            mapPanel.replaceChildren(frame);
+            mapPanel.hidden = false;
+        };
+        const timeFormat = new Intl.DateTimeFormat('th-TH', {
+            timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short',
+        });
+        let usingGooglePhoto = false;
+        const showCoverPhoto = (url, sourceUrl, authors = null) => {
+            usingGooglePhoto = Boolean(authors);
+            setPlaceImage(coverImgEl, url, place.name, sourceUrl);
+            if (!photoCredit || !coverImgEl) return;
+            photoCredit.replaceChildren();
+            photoCredit.hidden = !usingGooglePhoto;
+            if (!usingGooglePhoto) return;
+            appendGoogleCredit(photoCredit, sourceUrl, authors);
+            const onError = coverImgEl.onerror;
+            coverImgEl.onerror = event => {
+                onError?.call(coverImgEl, event);
+                photoCredit.hidden = true;
+            };
+        };
+
+        bindGooglePlaceDetails(place, data => {
+            googleDetails = data;
+            const resolvedEmbedUrl = getStoreEmbedUrl({ ...place, google_place_id: data.placeId || place.google_place_id }, coords);
+            if (resolvedEmbedUrl && resolvedEmbedUrl !== embedUrl) {
+                embedUrl = resolvedEmbedUrl;
+                loadEmbeddedMap();
+            }
+            const sourceUrl = httpUrl(data.mapsUrl) || mapsUrl;
+            const attributions = Array.isArray(data.attributions) ? data.attributions : [];
+            const photoUrl = httpUrl(data.photo?.uri);
+
+            if (photoUrl && coverImgEl) {
+                const authors = Array.isArray(data.photo.authors) ? data.photo.authors : [];
+                if (!coverImgUrl || coverImgEl.hidden || usingGooglePhoto) {
+                    showCoverPhoto(photoUrl, sourceUrl, authors);
+                } else if (coverImgEl.getAttribute('src') === coverImgUrl) {
+                    coverImgEl.onerror = () => {
+                        showCoverPhoto(photoUrl, sourceUrl, authors);
+                        if (mapPanel && !embedUrl) mapPanel.hidden = true;
+                    };
+                }
+            }
+            updateDetailStoreStatus();
+            const hoursValue = document.getElementById('detail-hours-value');
+            const hasHours = Array.isArray(data.hours) && data.hours.length > 0;
+            const nextChange = Date.parse(data.openNow === true ? data.nextCloseTime : data.nextOpenTime);
+            const fetchedAt = Date.parse(data.fetchedAt);
+            const hasStatus = getGoogleOpeningStatus(data) !== null;
+            if (hoursValue && (hasHours || Number.isFinite(nextChange) || hasStatus)) {
+                hoursValue.replaceChildren();
+                if (Number.isFinite(nextChange)) {
+                    const next = document.createElement('div');
+                    next.textContent = `${data.openNow ? 'ปิดครั้งถัดไป' : 'เปิดครั้งถัดไป'} ${timeFormat.format(nextChange)}`;
+                    hoursValue.append(next);
+                }
+                if (hasHours) {
+                    const schedule = document.createElement('details');
+                    schedule.open = true;
+                    const heading = document.createElement('summary');
+                    heading.textContent = data.hoursType === 'current' ? 'ดูเวลารายวัน' : 'ดูเวลาปกติรายวัน';
+                    const days = document.createElement('ul');
+                    data.hours.forEach(day => {
+                        const item = document.createElement('li');
+                        item.textContent = day;
+                        days.append(item);
+                    });
+                    schedule.append(heading, days);
+                    hoursValue.append(schedule);
+                } else {
+                    const known = document.createElement('div');
+                    known.textContent = hours.label;
+                    hoursValue.append(known);
+                }
+                const source = document.createElement('small');
+                appendGoogleCredit(source, sourceUrl, attributions);
+                if (Number.isFinite(fetchedAt)) source.append(` · ข้อมูล ณ ${timeFormat.format(fetchedAt)}`);
+                hoursValue.append(source);
+            }
+            if (data.phone) {
+                for (const id of ['detail-phone', 'detail-hours-phone']) {
+                    const phone = document.getElementById(id);
+                    if (!phone) continue;
+                    phone.textContent = `${data.phone} · `;
+                    appendGoogleCredit(phone, sourceUrl, attributions);
+                }
+            }
+            if (hasHours || hasStatus || usingGooglePhoto || data.phone) {
+                const terms = document.getElementById('google-place-terms');
+                if (terms) terms.hidden = false;
+                if (mapPanel && !embedUrl) mapPanel.hidden = true;
+                if (gmapLink && sourceUrl) {
+                    gmapLink.href = sourceUrl;
+                    gmapLink.textContent = 'เปิดร้านนี้บน Google Maps';
+                }
+            }
+        });
+
         // จุดเด่นและสิ่งอำนวยความสะดวก (Features Tags)
         const featuresContainer = document.getElementById('detail-features');
         if (featuresContainer) {
-            const rawFeat = cleanTextValue(place.features);
-            const rawSnip = cleanTextValue(place.review_snippet);
-            const tags = [
-                ...(rawFeat ? rawFeat.split(',').map(s => s.trim()) : []),
-                ...(rawSnip && rawSnip.length < 30 ? [rawSnip] : []),
-                'นั่งรับประทานที่ร้าน',
-                'สั่งกลับบ้าน',
-                'เหมาะกับนักศึกษา มธ.'
-            ].filter((v, i, a) => v && v.length > 1 && !/^฿/.test(v) && a.indexOf(v) === i).slice(0, 6);
-
-            featuresContainer.innerHTML = tags.map(t => `<span class="feature-tag-chip"><i class="fa-solid fa-check-circle"></i> ${t}</span>`).join('');
+            const tags = cleanTextValue(place.features).split(',').map(tag => tag.trim())
+                .filter(tag => tag && !/^฿/.test(tag));
+            featuresContainer.innerHTML = tags.map(tag => `<span class="feature-tag-chip">${escapeHTML(tag)}</span>`).join('')
+                || '<p class="data-state">ยังไม่มีข้อมูลจุดเด่นของร้าน</p>';
         }
 
         // S2-01: เมนูแนะนำและรูปภาพแกลเลอรี
@@ -1717,32 +1900,31 @@ document.addEventListener('DOMContentLoaded', () => {
         if (menuContainer) {
             menuContainer.innerHTML = recommendedMenus.map(menu => `
                 <div class="menu-item">
-                    <img src="${menu.image}" alt="${menu.name}" loading="lazy" onerror="this.onerror=null; this.src='${FALLBACK_FOOD_IMAGES[1]}';">
-                    <p>${menu.name}</p>
-                    <span>${menu.price}</span>
+                    ${placeImageHTML(httpUrl(menu.image), menu.name)}
+                    <p>${escapeHTML(menu.name)}</p>
+                    <span>${escapeHTML(cleanTextValue(menu.price) || (menu.price === 0 ? 0 : 'ยังไม่มีข้อมูลราคา'))}</span>
                 </div>
-            `).join('');
+            `).join('') || '<p class="data-state">ยังไม่มีข้อมูลเมนู</p>';
         }
 
         // สร้างแกลเลอรีรูปภาพใต้ภาพปก (คลิกเพื่อดูรูปใหญ่ได้ทันที)
         const galleryContainer = document.getElementById('detail-gallery');
-        const renderGallery = (extraReviewPhotos = []) => {
+        const renderGallery = () => {
             if (!galleryContainer) return;
             const galleryUrls = [
                 coverImgUrl,
-                ...recommendedMenus.map(m => m.image),
-                ...extraReviewPhotos
+                ...recommendedMenus.map(m => httpUrl(m.image))
             ].filter((u, idx, arr) => u && arr.indexOf(u) === idx).slice(0, 8);
 
             galleryContainer.innerHTML = galleryUrls.map((url, idx) => `
-                <img src="${url}" alt="ภาพร้าน ${idx + 1}" referrerpolicy="no-referrer" class="detail-gallery-thumb ${idx === 0 ? 'active' : ''}" onerror="this.onerror=null; if(${idx === 0}) { this.src='${relevantFallbackImg}'; } else { this.style.display='none'; }">
+                <img src="${escapeHTML(url)}" alt="ภาพร้าน ${idx + 1}" referrerpolicy="no-referrer" class="detail-gallery-thumb ${idx === 0 ? 'active' : ''}" onerror="this.hidden=true;">
             `).join('');
 
             galleryContainer.querySelectorAll('.detail-gallery-thumb').forEach(thumb => {
                 thumb.addEventListener('click', () => {
                     galleryContainer.querySelectorAll('.detail-gallery-thumb').forEach(t => t.classList.remove('active'));
                     thumb.classList.add('active');
-                    if (coverImgEl) coverImgEl.src = thumb.src;
+                    showCoverPhoto(thumb.src, mapsUrl);
                 });
             });
         };
@@ -1750,8 +1932,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // แผนที่ Leaflet เฉพาะร้าน
         const mapIframe = document.getElementById('detail-map');
-        if (mapIframe && typeof L !== 'undefined') {
-            const coords = parseLatLngFromPlace(place) || { lat: 14.0722, lng: 100.6067 };
+        if (mapIframe && embedUrl) {
+            mapIframe.src = embedUrl;
+        } else if (mapIframe && (!coords || typeof L === 'undefined')) {
+            const message = document.createElement('p');
+            message.className = 'data-state';
+            message.textContent = coords ? 'โหลดแผนที่ไม่ได้' : 'ยังไม่มีข้อมูลพิกัดร้าน';
+            mapIframe.replaceWith(message);
+        } else if (mapIframe && coords) {
             const mapContainer = document.createElement('div');
             mapContainer.id = 'detail-leaflet-map';
             mapContainer.style.width = '100%';
@@ -1760,6 +1948,7 @@ document.addEventListener('DOMContentLoaded', () => {
             mapIframe.replaceWith(mapContainer);
 
             const map = L.map('detail-leaflet-map').setView([coords.lat, coords.lng], 16);
+            leafletMap = map;
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
             const redIcon = L.icon({
                 iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
@@ -1768,7 +1957,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             L.marker([coords.lat, coords.lng], { icon: redIcon })
                 .addTo(map)
-                .bindPopup(`<b style="font-family:'Kanit',sans-serif;">${place.name}</b><br><small>${addressText}</small>`)
+                .bindPopup(`<b style="font-family:'Kanit',sans-serif;">${escapeHTML(place.name)}</b><br><small>${escapeHTML(addressText)}</small>`)
                 .openPopup();
         }
 
@@ -1779,13 +1968,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const detailReviewsCountLabel = document.getElementById('detail-reviews-count-label');
         const detailReviewsTotalLink = document.getElementById('detail-reviews-total-link');
 
-        if (detailReviewsAvg) detailReviewsAvg.textContent = rating.toFixed(1);
-        if (detailReviewsStars) {
+        if (detailReviewsAvg) detailReviewsAvg.textContent = rating?.toFixed(1) ?? '—';
+        if (detailReviewsStars && rating !== null) {
             const full = Math.round(rating);
             detailReviewsStars.textContent = '⭐'.repeat(full) + '☆'.repeat(Math.max(0, 5 - full));
         }
-        if (detailReviewsCountLabel) detailReviewsCountLabel.textContent = `จากทั้งหมด ${reviewCount} รีวิว`;
-        if (detailReviewsTotalLink) detailReviewsTotalLink.textContent = `ดูรีวิวทั้งหมดและให้คะแนน (${reviewCount}) →`;
+        if (detailReviewsCountLabel) detailReviewsCountLabel.textContent = reviewCount === null ? 'ยังไม่มีข้อมูลจำนวนรีวิว' : `จากทั้งหมด ${reviewCount} รีวิว`;
+        if (detailReviewsTotalLink) detailReviewsTotalLink.textContent = `ดูรีวิวทั้งหมดและให้คะแนน${reviewCount === null ? '' : ` (${reviewCount})`} →`;
 
         const renderDetailReviews = async () => {
             if (!reviewContainer) return;
@@ -1801,11 +1990,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             reviewContainer.innerHTML = reviews.slice(0, 5).map(r => buildReviewItemHTML(r)).join('');
 
-            const extraPhotos = [];
-            reviews.forEach(r => {
-                if (Array.isArray(r.image_urls)) extraPhotos.push(...r.image_urls);
-            });
-            if (extraPhotos.length > 0) renderGallery(extraPhotos);
+
         };
 
         await renderDetailReviews();
@@ -1869,12 +2054,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         comment: newReview.comment, image_urls: null
                     }]);
                     if (insertError) throw insertError;
-                    const { newAvg, newCount } = await recalculateAndSyncRating(place, starVal);
                     await renderDetailReviews();
 
                     quickForm.reset();
                     if (currentGoogleUser && quickReviewerInput) quickReviewerInput.value = currentGoogleUser.fullName;
-                    showToast(`ส่งรีวิวสำเร็จ! คะแนนเฉลี่ยอัปเดตเป็น ⭐ ${newAvg.toFixed(1)} (${newCount} รีวิว)`);
+                    await showSavedReviewStatus(place);
                 } catch (err) {
                     showToast(`ส่งรีวิวไม่สำเร็จ: ${err.message}`, 'fa-triangle-exclamation');
                 } finally {
@@ -1907,7 +2091,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // อัปเดตปุ่มกลับไปหน้าร้าน
         const backLink = document.querySelector('.back-link');
-        if (backLink) backLink.href = `detail.html?id=${globalPlaceId}`;
+        if (backLink) backLink.href = globalPlaceId ? `detail.html?id=${encodeURIComponent(globalPlaceId)}` : 'search.html';
 
         let currentPlace = null;
         if (supabaseClient && globalPlaceId) {
@@ -1934,8 +2118,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const priceInfo = getPriceDisplayInfo(currentPlace);
 
         if (titleH1) titleH1.textContent = currentPlace.name;
-        if (ratingSpan) ratingSpan.innerHTML = `⭐ ${initRating.toFixed(1)}`;
-        if (countSpan) countSpan.textContent = `(${initCount} รีวิว)`;
+        if (ratingSpan) ratingSpan.textContent = placeRatingText(initRating, null);
+        if (countSpan) countSpan.textContent = initCount === null ? 'ยังไม่มีข้อมูลจำนวนรีวิว' : `(${initCount} รีวิว)`;
         if (priceSpan) priceSpan.textContent = `• ช่วงราคา ${priceInfo.fullLabel}`;
 
         // ดึงชื่อผู้ใช้จาก Google Account มาใส่ในช่องชื่อผู้รีวิวอัตโนมัติ (ถ้าล็อกอินอยู่)
@@ -2073,7 +2257,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     comment: newReviewObj.comment, image_urls: newReviewObj.image_urls
                 }]);
                 if (insertError) throw insertError;
-                const { newAvg, newCount } = await recalculateAndSyncRating(currentPlace, starValue);
                 await loadAllReviews();
 
                 reviewForm.reset();
@@ -2082,7 +2265,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectedDataUrls = [];
                 if (previewContainer) previewContainer.innerHTML = '';
 
-                showToast(`ส่งรีวิวเรียบร้อย! คะแนนเฉลี่ยใหม่คือ ⭐ ${newAvg.toFixed(1)} (${newCount} รีวิว)`);
+                await showSavedReviewStatus(currentPlace);
             } catch (err) {
                 showToast('เกิดข้อผิดพลาด: ' + err.message, 'fa-triangle-exclamation');
             } finally {
@@ -2140,13 +2323,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (userLocationMarker) map.removeLayer(userLocationMarker);
             if (userLocationAccuracy) map.removeLayer(userLocationAccuracy);
 
-            userLocationAccuracy = L.circle(latLng, {
-                radius: accuracy || 100,
+            userLocationAccuracy = Number.isFinite(accuracy) ? L.circle(latLng, {
+                radius: accuracy,
                 color: '#2563eb',
                 fillColor: '#60a5fa',
                 fillOpacity: 0.2,
                 weight: 1
-            }).addTo(map);
+            }).addTo(map) : null;
 
             userLocationMarker = L.circleMarker(latLng, {
                 radius: 9,
@@ -2174,11 +2357,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 error => {
                     console.warn('Geolocation error:', error.message);
-                    const fallbackPosition = {
-                        coords: { latitude: 14.0722, longitude: 100.6067, accuracy: 500 }
-                    };
-                    showUserLocation(fallbackPosition, shouldCenter);
-                    if (onSuccess) onSuccess();
+                    if (onError) onError();
                 },
                 { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
             );
@@ -2206,25 +2385,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             places.forEach(place => {
-                const mapUrl = place.google_map || place['google map'] || '';
+                const mapUrl = httpUrl(place.google_map || place['google map']);
                 const coords = parseLatLngFromPlace(place);
 
                 if (coords && !Number.isNaN(coords.lat) && !Number.isNaN(coords.lng)) {
                     const marker = L.marker([coords.lat, coords.lng], { icon: redIcon }).addTo(map);
-                    const imageUrl = resolveHighResImage(place.image_url, place);
-                    const mapFallbackImg = getRelevantFallbackImage(place);
+                    const imageUrl = getPlaceImage(place);
                     const priceInfo = getPriceDisplayInfo(place);
                     const { rating } = getEffectivePlaceRatingAndCount(place);
 
                     const popupContent = `
                         <div style="font-family: 'Kanit', sans-serif; padding: 0px; width: 220px;">
-                            <img src="${imageUrl}" referrerpolicy="no-referrer" style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;" alt="${place.name}" onerror="this.onerror=null; this.src='${mapFallbackImg}';">
-                            <h4 style="margin: 0 0 4px 0; color: var(--primary-red, #e63946); font-size: 15px;">${place.name}</h4>
-                            <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><i class="fa-solid fa-tag"></i> ${place.category || 'ร้านค้า'} • 💰 ${priceInfo.symbol}</p>
-                            <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: 500;">⭐ ${rating}</p>
+                            ${placeImageHTML(imageUrl, place.name)}
+                            <h4 style="margin: 0 0 4px 0; color: var(--primary-red, #e63946); font-size: 15px;">${escapeHTML(place.name)}</h4>
+                            <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><i class="fa-solid fa-tag"></i> ${escapeHTML(place.category || 'ยังไม่มีข้อมูลหมวดหมู่')} • ${escapeHTML(priceInfo.fullLabel)}</p>
+                            <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: 500;">${placeRatingText(rating, null)}</p>
                             <div style="display: flex; gap: 5px; margin-top: 10px;">
                                 <a href="detail.html?id=${place.id}" style="flex: 1; text-align: center; background: #eee; color: #333; padding: 6px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500;">ดูรายละเอียด</a>
-                                <a href="${mapUrl || `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}`}" target="_blank" style="flex: 1; text-align: center; background: var(--primary-red, #e63946); color: white; padding: 6px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500;"><i class="fa-solid fa-location-arrow"></i> นำทาง</a>
+                                <a href="${escapeHTML(mapUrl || `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}`)}" target="_blank" style="flex: 1; text-align: center; background: var(--primary-red, #e63946); color: white; padding: 6px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500;"><i class="fa-solid fa-location-arrow"></i> นำทาง</a>
                             </div>
                         </div>`;
                     marker.bindPopup(popupContent);
@@ -2309,10 +2487,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const cat = document.getElementById('new-place-category').value;
                     if (supabaseClient) {
                         try {
+                            const position = tempMarker.getLatLng().wrap();
                             const { error } = await supabaseClient.from('places').insert([{
                                 name: name,
                                 category: cat,
-                                'google map': `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
+                                'google map': `https://www.google.com/maps/search/?api=1&query=${position.lat.toFixed(7)},${position.lng.toFixed(7)}`
                             }]);
                             if (error) throw error;
                             showToast('เพิ่มร้านค้าลงบนแผนที่สำเร็จ!');
@@ -2456,16 +2635,37 @@ document.addEventListener('DOMContentLoaded', () => {
             const { rating } = getEffectivePlaceRatingAndCount(selected);
 
             const updateCardData = () => {
-                document.getElementById('res-title').textContent = selected.name;
+                const resultCard = tarotCard.querySelector('.card-back');
+                const drawToken = {};
+                resultCard.googleDrawToken = drawToken;
+                resultCard.querySelector('.card-google-photo-credit')?.remove();
+                resultCard.querySelectorAll('[data-google-updated]').forEach(field => {
+                    delete field.dataset.googleUpdated;
+                    field.removeAttribute('title');
+                    field.parentElement.removeAttribute('title');
+                });
+                const localStatus = getLiveStoreStatus(selected);
+                const status = resultCard.querySelector('[data-google-field="status"]');
+                status.textContent = localStatus === true ? 'เปิดอยู่' : localStatus === false ? 'ปิดอยู่' : 'ยังไม่ทราบสถานะ';
+                status.classList.toggle('is-open', localStatus === true);
+                status.classList.toggle('is-closed', localStatus === false);
+                for (const [key, text] of Object.entries({
+                    phone: getPlacePhone(selected), address: getPlaceAddress(selected), hours: getStoreHours(selected).label,
+                })) resultCard.querySelector(`[data-google-field="${key}"]`).textContent = text;
+                document.getElementById('res-menu').textContent = getPlaceRecommendedMenus(selected)
+                    .slice(0, 2).map(menu => menu.name).join(', ') || 'ยังไม่มีข้อมูลเมนู';
+                document.getElementById('res-title').textContent = selected.name || 'ยังไม่มีข้อมูลชื่อร้าน';
                 const resImg = document.getElementById('res-img');
                 resImg.referrerPolicy = 'no-referrer';
-                resImg.onerror = function () { this.onerror = null; this.src = getRelevantFallbackImage(selected); };
-                resImg.src = resolveHighResImage(selected.image_url, selected);
-                document.getElementById('res-rating').textContent = rating;
-                document.getElementById('res-cat').textContent = selected.category || 'ร้านค้า';
+                setPlaceImage(resImg, getPlaceImage(selected), selected.name);
+                document.getElementById('res-rating').textContent = rating ?? 'ยังไม่มีข้อมูลคะแนน';
+                document.getElementById('res-cat').textContent = selected.category || 'ยังไม่มีข้อมูลหมวดหมู่';
                 document.getElementById('res-price').textContent = priceInfo.fullLabel;
                 document.getElementById('res-desc').textContent = getPlaceSummaryText(selected);
                 document.getElementById('res-link').href = `detail.html?id=${selected.id}`;
+                if (/^[A-Za-z0-9_-]{8,300}$/.test(selected.google_place_id || '')) {
+                    queueGoogleCard(resultCard, selected.id, resultCard, () => resultCard.googleDrawToken === drawToken);
+                }
             };
 
             btnRandom.disabled = true;
@@ -2495,10 +2695,10 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         btnRandom.addEventListener('click', pickRandomShop);
         tarotCard.addEventListener('click', (event) => {
-            if (!event.target.closest('#res-link')) pickRandomShop();
+            if (!event.target.closest('a')) pickRandomShop();
         });
         tarotCard.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
+            if (event.target === tarotCard && (event.key === 'Enter' || event.key === ' ')) {
                 event.preventDefault();
                 pickRandomShop();
             }
@@ -2522,61 +2722,53 @@ document.addEventListener('DOMContentLoaded', () => {
         let selectedCategory = 'all';
         let userCoordinates = null;
 
-        const getEventWindow = (item) => {
-            const startRaw = item.start_at || item.starts_at || item.start_date || item.dateTime || item.date_time;
-            const endRaw = item.end_at || item.ends_at || item.end_date;
-            const start = startRaw ? new Date(startRaw) : null;
-            let end = endRaw ? new Date(endRaw) : null;
-            if (!end && start && !Number.isNaN(start.valueOf())) {
-                end = new Date(start);
-                end.setHours(23, 59, 59, 999);
-            }
-            return { start: start && !Number.isNaN(start.valueOf()) ? start : null, end: end && !Number.isNaN(end.valueOf()) ? end : null };
+        const eventStatuses = {
+            upcoming: { text: '⏳ เร็วๆ นี้', className: 'status-upcoming' },
+            ongoing: { text: '🔥 กำลังจัดอยู่', className: 'status-ongoing' },
+            pending: { text: 'กำหนดการรอยืนยัน', className: 'status-upcoming' }
         };
-        const getEventStatus = (item) => {
-            const { start, end } = getEventWindow(item);
-            const now = new Date();
-            if (end && end < now) return { key: 'expired', text: 'สิ้นสุดแล้ว', className: 'status-expired' };
-            if (start && start > now) return { key: 'upcoming', text: '⏳ เร็วๆ นี้', className: 'status-upcoming' };
-            if (start && (!end || end >= now)) return { key: 'ongoing', text: '🔥 กำลังจัดอยู่', className: 'status-ongoing' };
-            return { key: 'upcoming', text: 'กำหนดการรอยืนยัน', className: 'status-upcoming' };
-        };
+        const eventDateFormat = new Intl.DateTimeFormat('th-TH', {
+            timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short'
+        });
 
         const loadRealEvents = async () => {
             if (!eventsGrid) return;
             eventsGrid.innerHTML = '<p class="data-state">กำลังโหลดกิจกรรม...</p>';
             try {
                 if (!supabaseClient) throw new Error('ไม่สามารถเชื่อมต่อฐานข้อมูลได้');
-                const { data: events, error } = await supabaseClient.from('events').select('*').order('created_at', { ascending: false });
+                const { data: events, error } = await supabaseClient.from('events').select('*,event_status').order('created_at', { ascending: false });
                 if (error) throw error;
 
                 eventsGrid.innerHTML = '';
                 const categoryNames = { food: 'อาหาร & ตลาดนัด', sports: 'กีฬา & กิจกรรม', promo: 'โปรโมชันส่วนลด', concert: 'คอนเสิร์ต & ดนตรี' };
 
-                const activeEvents = (events || []).filter(item => getEventStatus(item).key !== 'expired');
+                const activeEvents = (events || []).filter(item => item.event_status !== 'expired');
                 if (!activeEvents.length) {
                     eventsGrid.innerHTML = '<p class="data-state">ยังไม่มีกิจกรรมที่กำลังจะมาถึง</p>';
                     return;
                 }
                 activeEvents.forEach(item => {
-                    const status = getEventStatus(item);
+                    const status = eventStatuses[item.event_status] || eventStatuses.pending;
+                    const dateLabel = item.event_status !== 'pending' && item.start_at && item.end_at
+                        ? `${eventDateFormat.format(new Date(item.start_at))} – ${eventDateFormat.format(new Date(item.end_at))}`
+                        : item.dateTime || '';
                     const card = document.createElement('div');
                     card.className = 'event-card';
-                    card.dataset.category = `${item.category || 'food'} ${status.key}`;
+                    card.dataset.category = `${item.category || 'food'} ${item.event_status === 'pending' ? 'upcoming' : item.event_status}`;
                     if (item.lat && item.lng) { card.dataset.lat = item.lat; card.dataset.lng = item.lng; }
 
                     card.innerHTML = `
                         <div class="event-img-wrapper">
-                            <img src="${item.image_url || ''}" alt="${item.title || 'กิจกรรม'}" onerror="this.closest('.event-img-wrapper').classList.add('image-unavailable'); this.remove();">
+                            <img src="${escapeHTML(item.image_url)}" alt="${escapeHTML(item.title || 'กิจกรรม')}" onerror="this.closest('.event-img-wrapper').classList.add('image-unavailable'); this.remove();">
                             <span class="event-status-badge ${status.className}">${status.text}</span>
                             <span class="event-cat-badge">${categoryNames[item.category] || 'กิจกรรม'}</span>
                         </div>
                         <div class="event-body">
-                            <h3>${item.title}</h3>
-                            <p>${item.description}</p>
+                            <h3>${escapeHTML(item.title)}</h3>
+                            <p>${escapeHTML(item.description)}</p>
                             <div class="event-meta-info">
-                                <div class="event-meta-item"><i class="fa-regular fa-calendar"></i> ${item.dateTime || ''}</div>
-                                <div class="event-meta-item"><i class="fa-solid fa-location-dot"></i> ${item.location || ''}</div>
+                                <div class="event-meta-item"><i class="fa-regular fa-calendar"></i> ${escapeHTML(dateLabel)}</div>
+                                <div class="event-meta-item"><i class="fa-solid fa-location-dot"></i> ${escapeHTML(item.location)}</div>
                             </div>
                         </div>`;
                     eventsGrid.appendChild(card);
@@ -2645,6 +2837,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const formData = new FormData(activityForm);
+                const startAt = new Date(`${formData.get('dateTime')}+07:00`);
+                const endAt = new Date(`${formData.get('endDateTime')}+07:00`);
+                if (!(endAt > startAt)) {
+                    showToast('วันและเวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มต้น', 'fa-triangle-exclamation');
+                    return;
+                }
+
                 const btn = activityForm.querySelector('button[type="submit"]');
                 if (btn) { btn.disabled = true; btn.textContent = 'กำลังบันทึก...'; }
 
@@ -2655,6 +2854,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         location: formData.get('location'),
                         category: formData.get('category'),
                         dateTime: formData.get('dateTime'),
+                        start_at: startAt.toISOString(),
+                        end_at: endAt.toISOString(),
                         user_id: session.user.id
                     }]);
                     if (error) throw error;

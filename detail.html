@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google-maps-embed-key" content="">
     <title id="detail-page-title">รายละเอียดสถานที่ - TU Aroi</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
@@ -34,12 +35,13 @@
         <!-- S2-01: ปรับ Layout การแสดงผลรูปภาพและข้อมูลเชิงลึกให้ละเอียดขึ้น -->
         <div class="detail-header-card">
             <div class="detail-cover">
-                <img id="detail-cover-image" referrerpolicy="no-referrer" src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=1200" alt="สถานที่">
+                <img id="detail-cover-image" referrerpolicy="no-referrer" hidden alt="สถานที่">
+                <div id="google-place-photo-credit" class="google-place-photo-credit" hidden></div>
                 <div class="detail-cover-overlay">
                     <div class="detail-cover-badges">
                         <span id="detail-category" class="detail-tag" style="margin-bottom: 0;">สถานที่</span>
                         <span id="detail-rating-badge" class="detail-meta-pill rating-pill">⭐ -</span>
-                        <span id="detail-price-badge" class="detail-meta-pill price-pill">$$</span>
+                        <span id="detail-price-badge" class="detail-meta-pill price-pill">—</span>
                         <span id="detail-open-badge" class="detail-meta-pill status-open">กำลังตรวจสอบเวลา...</span>
                     </div>
                     <h1 id="detail-name">กำลังโหลดรายละเอียด...</h1>
@@ -74,10 +76,10 @@
 
                     <div class="review-summary-banner">
                         <div class="review-summary-score">
-                            <span id="detail-reviews-avg" class="review-score-number">0.0</span>
+                            <span id="detail-reviews-avg" class="review-score-number">—</span>
                             <div>
-                                <div id="detail-reviews-stars" style="color: var(--accent-gold); font-size: 14px;">⭐⭐⭐⭐⭐</div>
-                                <small id="detail-reviews-count-label" style="color: var(--text-muted); font-size: 12px;">จาก 0 รีวิว</small>
+                                <div id="detail-reviews-stars" style="color: var(--accent-gold); font-size: 14px;"></div>
+                                <small id="detail-reviews-count-label" style="color: var(--text-muted); font-size: 12px;"></small>
                             </div>
                         </div>
                         <span style="font-size: 12px; color: var(--text-muted);"><i class="fa-solid fa-bolt" style="color: var(--accent-gold);"></i> อัปเดตคะแนนแบบ Real-time</span>
@@ -135,9 +137,9 @@
                         </div>
                     </div>
                     
-                    <div style="width: 100%; height: 220px; border-radius: 8px; overflow: hidden; margin-bottom: 12px; border: 1px solid var(--border-color);">
-                        <iframe id="detail-map"
-                            src="about:blank"
+                    <div id="detail-map-panel" style="width: 100%; height: 220px; border-radius: 8px; overflow: hidden; margin-bottom: 12px; border: 1px solid var(--border-color);">
+                        <iframe id="detail-map" title="แผนที่ร้านค้า"
+                            src="about:blank" referrerpolicy="strict-origin-when-cross-origin"
                             width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy">
                         </iframe>
                     </div>
@@ -145,6 +147,13 @@
                     <a id="detail-gmap-link" href="#" target="_blank" rel="noopener" style="display: block; width: 100%; text-align: center; text-decoration: none; box-sizing: border-box; padding: 10px; margin-bottom: 10px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); font-size: 13px; font-weight: 600;">
                         <i class="fa-solid fa-location-arrow" style="color: var(--primary-red);"></i> เปิดพิกัดใน Google Maps
                     </a>
+
+                    <button id="google-place-load" type="button" class="map-control-btn" hidden>อัปเดตข้อมูล Google Maps</button>
+                    <p id="google-place-message" class="google-place-message" aria-live="polite" hidden></p>
+                    <p id="google-place-terms" class="google-place-message" hidden>
+                        <a href="https://maps.google.com/help/terms_maps/" target="_blank" rel="noopener">ข้อกำหนด Google Maps</a> ·
+                        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">นโยบายความเป็นส่วนตัวของ Google</a>
+                    </p>
 
                     <a href="review.html" class="btn-primary-red" style="display: block; width: 100%; text-align: center; text-decoration: none; box-sizing: border-box; padding: 12px;">เขียนรีวิว / ดูรีวิวทั้งหมด</a>
                 </div>
