@@ -550,7 +550,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const priceInfo = getPriceDisplayInfo(place);
         const { rating, reviewCount } = getEffectivePlaceRatingAndCount(place);
         const imgUrl = getPlaceImage(place);
-        const googlePhotoId = extraMeta.searchPhotos && /^[A-Za-z0-9_-]{8,300}$/.test(place.google_place_id || '')
+        const googlePhotoId = /^[A-Za-z0-9_-]{8,300}$/.test(place.google_place_id || '')
             ? String(place.id) : '';
         const openStatus = place.currently_open ?? getLiveStoreStatus(place);
         const hoursLabel = escapeHTML(getStoreHours(place).label);
@@ -580,7 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="card-info-header">
                                 <h3 style="margin-bottom: 2px;">${escapeHTML(place.name || 'ยังไม่มีข้อมูลชื่อร้าน')}</h3>
                             </div>
-                            <span class="store-status ${openStatus === null ? '' : openStatus ? 'is-open' : 'is-closed'}">${openStatus === null ? 'ยังไม่ทราบสถานะ' : openStatus ? 'Open Now' : 'Closed'}</span>
+                            <span data-google-field="status" class="store-status ${openStatus === null ? '' : openStatus ? 'is-open' : 'is-closed'}">${openStatus === null ? 'ยังไม่ทราบสถานะ' : openStatus ? 'Open Now' : 'Closed'}</span>
                             <p class="desc" style="margin-bottom: 6px;">${escapeHTML(place.category || 'ยังไม่มีข้อมูลหมวดหมู่')}</p>
                             
                             <div class="card-meta-list">
@@ -590,22 +590,124 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                                 <div class="card-meta-item" title="เบอร์โทรศัพท์: ${escapeHTML(phoneText)}">
                                     <i class="fa-solid fa-phone"></i>
-                                    <span>${escapeHTML(phoneText)}</span>
+                                    <span data-google-field="phone">${escapeHTML(phoneText)}</span>
                                 </div>
                                 <div class="card-meta-item" title="ที่อยู่: ${escapeHTML(addressText)}">
                                     <i class="fa-solid fa-location-dot"></i>
-                                    <span>${escapeHTML(addressText)}</span>
+                                    <span data-google-field="address">${escapeHTML(addressText)}</span>
                                 </div>
                             </div>
 
                             <div class="card-footer">
-                                <span title="${hoursLabel}"><i class="fa-regular fa-clock"></i> ${hoursLabel}</span>
-                                <span class="price">${escapeHTML(priceInfo.fullLabel)}</span>
+                                <span title="${hoursLabel}"><i class="fa-regular fa-clock"></i> <span data-google-field="hours">${hoursLabel}</span></span>
+                                <span class="price" data-google-field="price">${escapeHTML(priceInfo.fullLabel)}</span>
                             </div>
                         </div>
                     </div>
                 </a>
             </div>`;
+    }
+
+    let googleCardQueue = Promise.resolve();
+    let googleCardDetailsLimited = false;
+    let googleCardPhotosLimited = false;
+
+    function updateGoogleCardFields(card, data) {
+        const day = new Intl.DateTimeFormat('th-TH', { weekday: 'long', timeZone: 'Asia/Bangkok' }).format(new Date());
+        const hours = Array.isArray(data.hours) && data.hours.find(value => value.startsWith(day + ':'));
+        const status = getGoogleOpeningStatus(data);
+        const { startPrice, endPrice } = data.priceRange || {};
+        const money = value => value?.currencyCode === 'THB' && value.units != null
+            ? Number(value.units) + (Number(value.nanos) || 0) / 1e9 : NaN;
+        const start = money(startPrice);
+        const end = money(endPrice);
+        const price = Number.isFinite(start) && Number.isFinite(end)
+            ? `${start.toLocaleString('th-TH')}–${end.toLocaleString('th-TH')} บาท` : '';
+        const fields = { phone: data.phone, address: data.address, hours, price, status: status?.label };
+        for (const [key, value] of Object.entries(fields)) {
+            const field = card.querySelector(`[data-google-field="${key}"]`);
+            if (!field || !value) continue;
+            field.textContent = value;
+            field.title = value;
+            field.parentElement.title = value;
+            field.dataset.googleUpdated = 'true';
+            if (key === 'status') {
+                const nextChange = Date.parse(data.openNow ? data.nextCloseTime : data.nextOpenTime);
+                const fetched = Date.parse(data.fetchedAt);
+                field.dataset.googleExpires = String(Math.min(fetched + 15 * 60 * 1000,
+                    Number.isFinite(nextChange) ? nextChange : Infinity));
+                field.classList.toggle('is-open', status.isOpen === true);
+                field.classList.toggle('is-closed', status.isOpen === false);
+            }
+        }
+        return Boolean(card.querySelector('[data-google-updated]'));
+    }
+
+    function queueGoogleCard(panel, id, card, isCurrent = () => panel.isConnected) {
+        const image = panel.querySelector('img');
+        if (!image || !supabaseClient) return;
+        const request = (photoOnly = false) => {
+            googleCardQueue = googleCardQueue.then(async () => {
+                if (!isCurrent()) return;
+                const includePhoto = !googleCardPhotosLimited && (!image.hasAttribute('src') || image.hidden);
+                const onlyPhoto = photoOnly || googleCardDetailsLimited;
+                if (onlyPhoto && !includePhoto) return;
+                const { data: auth } = await supabaseClient.auth.getSession();
+                if (!auth?.session || !isCurrent()) return;
+                const { data, error } = await supabaseClient.functions.invoke('google-place', {
+                    body: { id, mode: onlyPhoto ? 'photo' : 'card', includePhoto },
+                });
+                if (error || !data) return;
+                if (data.detailsStatus === 'quota') googleCardDetailsLimited = true;
+                if (data.photoStatus === 'quota') googleCardPhotosLimited = true;
+                if (!isCurrent()) return;
+
+                const hasFields = !onlyPhoto && updateGoogleCardFields(card, data);
+                const url = httpUrl(data.photo?.uri);
+                if (!url && !hasFields) return;
+                const credit = document.createElement('small');
+                credit.className = 'card-google-photo-credit';
+                appendGoogleCredit(credit, httpUrl(data.mapsUrl), [
+                    ...(Array.isArray(data.attributions) ? data.attributions : []),
+                    ...(Array.isArray(data.photo?.authors) ? data.photo.authors : []),
+                ]);
+                const previous = card.querySelector('.card-google-photo-credit');
+                // A photo-only fallback keeps any attribution already shown for the details.
+                if (onlyPhoto && previous) previous.append(document.createTextNode(' · '), ...credit.childNodes);
+                else {
+                    previous?.remove();
+                    const actions = card.querySelector('.shop-actions');
+                    if (actions) actions.before(credit);
+                    else card.append(credit);
+                }
+                if (url) {
+                    setPlaceImage(image, url, image.alt);
+                    if (!hasFields && !previous) image.addEventListener('error', () => credit.remove(), { once: true });
+                }
+            }).catch(() => {
+                // Keep database values and the image placeholder when Google is unavailable.
+            });
+        };
+        if (image.hasAttribute('src') && !image.complete) {
+            image.addEventListener('error', () => request(true), { once: true });
+        }
+        request();
+    }
+
+    const photoObserver = typeof IntersectionObserver === 'function' ? new IntersectionObserver(entries => {
+        for (const { target, isIntersecting } of entries) {
+            if (!isIntersecting || !target.isConnected) continue;
+            photoObserver.unobserve(target);
+            queueGoogleCard(target, target.dataset.photoId, target.closest('.card-link'));
+        }
+    }) : null;
+
+    function observeGoogleCard(panel) {
+        photoObserver?.observe(panel);
+    }
+
+    function observeGoogleCards(grid) {
+        grid.querySelectorAll('[data-photo-id]:not([data-photo-id=""])').forEach(observeGoogleCard);
     }
 
     document.addEventListener('click', (e) => {
@@ -889,54 +991,6 @@ document.addEventListener('DOMContentLoaded', () => {
             updateDiscoveryRandomizerAvailability();
         };
 
-        let googlePhotoQuotaReached = false;
-        let photoQueue = Promise.resolve();
-
-        const loadCardGooglePhoto = async panel => {
-            const image = panel.querySelector('img');
-            if (!image || panel.dataset.googlePhotoRequested || !panel.isConnected || googlePhotoQuotaReached) return;
-            panel.dataset.googlePhotoRequested = 'true';
-            try {
-                const { data: auth } = await supabaseClient.auth.getSession();
-                if (!auth?.session || !panel.isConnected) return;
-                const { data, error } = await supabaseClient.functions.invoke('google-place', {
-                    body: { id: panel.dataset.photoId, mode: 'photo' },
-                });
-                if (error || !data) return;
-                if (data.photoStatus === 'quota') googlePhotoQuotaReached = true;
-                const url = httpUrl(data.photo?.uri);
-                if (!url || !panel.isConnected) return;
-                setPlaceImage(image, url, image.alt);
-                const credit = document.createElement('small');
-                credit.className = 'card-google-photo-credit';
-                appendGoogleCredit(credit, '', data.photo.authors);
-                const onError = image.onerror;
-                image.onerror = event => {
-                    onError?.call(image, event);
-                    credit.remove();
-                };
-                // Keep attribution links outside the link around the card.
-                panel.closest('.card-link').append(credit);
-            } catch {
-                // The original place card remains usable without Google.
-            }
-        };
-
-        const photoObserver = typeof IntersectionObserver === 'function' && supabaseClient
-            ? new IntersectionObserver(entries => {
-                entries.forEach(({ target, isIntersecting }) => {
-                    if (!isIntersecting) return;
-                    photoObserver.unobserve(target);
-                    const image = target.querySelector('img');
-                    const schedule = () => {
-                        photoQueue = photoQueue.then(() => loadCardGooglePhoto(target));
-                    };
-                    if (!image?.hasAttribute('src') || image.hidden) schedule();
-                    else if (!image.complete) image.addEventListener('error', schedule, { once: true });
-                    else if (!image.naturalWidth) schedule();
-                });
-            }) : null;
-
         function renderPlaces() {
             const previousPhotos = new Map(Array.from(cardGrid.querySelectorAll('[data-photo-id]:not([data-photo-id=""])'),
                 panel => [panel.dataset.photoId, panel]));
@@ -950,14 +1004,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const template = document.createElement('template');
             template.innerHTML = currentFilteredPlaces.slice(0, displayLimit)
-                .map(place => createCardHTML(place, { searchPhotos: true })).join('');
+                .map(place => createCardHTML(place)).join('');
             const newPhotos = [];
             template.content.querySelectorAll('[data-photo-id]:not([data-photo-id=""])').forEach(panel => {
                 const previous = previousPhotos.get(panel.dataset.photoId);
                 if (previous?.dataset.imageSource === panel.dataset.imageSource) {
                     previousPhotos.delete(panel.dataset.photoId);
-                    const credit = previous.closest('.card-link').querySelector('.card-google-photo-credit');
-                    if (credit) panel.closest('.card-link').append(credit);
+                    const oldCard = previous.closest('.card-link');
+                    const newCard = panel.closest('.card-link');
+                    oldCard.querySelectorAll('[data-google-updated]').forEach(field => {
+                        if (field.dataset.googleField === 'status' && Number(field.dataset.googleExpires) <= Date.now()) return;
+                        newCard.querySelector(`[data-google-field="${field.dataset.googleField}"]`)?.replaceWith(field);
+                    });
+                    const credit = oldCard.querySelector('.card-google-photo-credit');
+                    if (credit) newCard.append(credit);
                     panel.replaceWith(previous);
                 } else {
                     newPhotos.push(panel);
@@ -965,7 +1025,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             previousPhotos.forEach(panel => photoObserver?.unobserve(panel));
             cardGrid.replaceChildren(template.content);
-            newPhotos.forEach(panel => photoObserver?.observe(panel));
+            newPhotos.forEach(observeGoogleCard);
 
             const loadBtn = document.querySelector('.load-more-btn');
             if (loadBtn) loadBtn.style.display = (displayLimit >= currentFilteredPlaces.length) ? 'none' : 'block';
@@ -1166,7 +1226,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 savedCardsGrid.innerHTML = '<p style="grid-column: span 3; text-align: center; color: var(--text-muted); padding: 40px 0;">ยังไม่มีรายการที่บันทึกไว้</p>';
                 return;
             }
-            savedPlacesData.forEach(place => { savedCardsGrid.innerHTML += createCardHTML(place); });
+            savedCardsGrid.innerHTML = savedPlacesData.map(place => createCardHTML(place)).join('');
+            observeGoogleCards(savedCardsGrid);
         };
         loadSavedPlaces();
     }
@@ -1200,6 +1261,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return place ? createCardHTML(place, { randomizedAt: item.randomized_at }) : '';
             }).join('');
             randomHistoryGrid.innerHTML = cards || '<p class="data-state">ไม่พบร้านในประวัติที่ยังแสดงได้</p>';
+            observeGoogleCards(randomHistoryGrid);
         } catch (error) {
             if (request === historyRequest) {
                 randomHistoryGrid.innerHTML = '<p class="data-state data-state-error">โหลดประวัติร้านจากฐานข้อมูลไม่ได้</p>';
@@ -2573,6 +2635,25 @@ document.addEventListener('DOMContentLoaded', () => {
             const { rating } = getEffectivePlaceRatingAndCount(selected);
 
             const updateCardData = () => {
+                const resultCard = tarotCard.querySelector('.card-back');
+                const drawToken = {};
+                resultCard.googleDrawToken = drawToken;
+                resultCard.querySelector('.card-google-photo-credit')?.remove();
+                resultCard.querySelectorAll('[data-google-updated]').forEach(field => {
+                    delete field.dataset.googleUpdated;
+                    field.removeAttribute('title');
+                    field.parentElement.removeAttribute('title');
+                });
+                const localStatus = getLiveStoreStatus(selected);
+                const status = resultCard.querySelector('[data-google-field="status"]');
+                status.textContent = localStatus === true ? 'เปิดอยู่' : localStatus === false ? 'ปิดอยู่' : 'ยังไม่ทราบสถานะ';
+                status.classList.toggle('is-open', localStatus === true);
+                status.classList.toggle('is-closed', localStatus === false);
+                for (const [key, text] of Object.entries({
+                    phone: getPlacePhone(selected), address: getPlaceAddress(selected), hours: getStoreHours(selected).label,
+                })) resultCard.querySelector(`[data-google-field="${key}"]`).textContent = text;
+                document.getElementById('res-menu').textContent = getPlaceRecommendedMenus(selected)
+                    .slice(0, 2).map(menu => menu.name).join(', ') || 'ยังไม่มีข้อมูลเมนู';
                 document.getElementById('res-title').textContent = selected.name || 'ยังไม่มีข้อมูลชื่อร้าน';
                 const resImg = document.getElementById('res-img');
                 resImg.referrerPolicy = 'no-referrer';
@@ -2582,6 +2663,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('res-price').textContent = priceInfo.fullLabel;
                 document.getElementById('res-desc').textContent = getPlaceSummaryText(selected);
                 document.getElementById('res-link').href = `detail.html?id=${selected.id}`;
+                if (/^[A-Za-z0-9_-]{8,300}$/.test(selected.google_place_id || '')) {
+                    queueGoogleCard(resultCard, selected.id, resultCard, () => resultCard.googleDrawToken === drawToken);
+                }
             };
 
             btnRandom.disabled = true;
@@ -2611,10 +2695,10 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         btnRandom.addEventListener('click', pickRandomShop);
         tarotCard.addEventListener('click', (event) => {
-            if (!event.target.closest('#res-link')) pickRandomShop();
+            if (!event.target.closest('a')) pickRandomShop();
         });
         tarotCard.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
+            if (event.target === tarotCard && (event.key === 'Enter' || event.key === ' ')) {
                 event.preventDefault();
                 pickRandomShop();
             }

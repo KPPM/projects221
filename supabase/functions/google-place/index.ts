@@ -8,7 +8,7 @@ const allowedOrigin = Deno.env.get("GOOGLE_PLACES_SITE_ORIGIN") || "https://ixsa
 const googleBase = "https://places.googleapis.com/v1/";
 
 const searchLimit = 54;
-const detailsLimit = 60;
+const detailsLimit = 500;
 const photoLimit = 500;
 
 async function reserve(sku: "details" | "photo", max: number) {
@@ -212,6 +212,7 @@ Deno.serve(async (request) => {
     try {
         const body = await request.json().catch(() => null);
         const photoOnly = body?.mode === "photo";
+        const includePhoto = body?.includePhoto !== false;
         const localId = String(body?.id ?? "");
         if (!/^\d{1,19}$/.test(localId)) return respond({ code: "bad_id" }, 400);
 
@@ -232,13 +233,14 @@ Deno.serve(async (request) => {
         }
         if (photoOnly) return respond({ placeId: id, ...await fetchPlacePhoto(id) });
         if (!await reserve("details", detailsLimit)) {
-            return respond({ placeId: id, detailsStatus: "quota", ...await fetchPlacePhoto(id) });
+            return respond({ placeId: id, detailsStatus: "quota", ...(includePhoto ? await fetchPlacePhoto(id) : {}) });
         }
 
+        const fields = "displayName,nationalPhoneNumber,formattedAddress,priceRange,currentOpeningHours,regularOpeningHours,businessStatus,googleMapsUri,attributions";
         const detailsResponse = await fetch(googleBase + "places/" + id + "?languageCode=th", {
             headers: {
                 "X-Goog-Api-Key": googleKey,
-                "X-Goog-FieldMask": "displayName,nationalPhoneNumber,currentOpeningHours,regularOpeningHours,businessStatus,googleMapsUri,photos,attributions",
+                "X-Goog-FieldMask": includePhoto ? fields + ",photos" : fields,
             },
             redirect: "error",
             signal: AbortSignal.timeout(8000),
@@ -250,6 +252,8 @@ Deno.serve(async (request) => {
             placeId: id,
             name: details.displayName?.text,
             phone: details.nationalPhoneNumber,
+            address: details.formattedAddress,
+            priceRange: details.priceRange,
             hours: details.currentOpeningHours?.weekdayDescriptions?.length
                 ? details.currentOpeningHours.weekdayDescriptions
                 : details.regularOpeningHours?.weekdayDescriptions,
@@ -261,7 +265,7 @@ Deno.serve(async (request) => {
             fetchedAt: new Date().toISOString(),
             mapsUrl: details.googleMapsUri,
             attributions: details.attributions || [],
-            ...await fetchPhoto(details.photos?.[0]),
+            ...(includePhoto ? await fetchPhoto(details.photos?.[0]) : {}),
         });
     } catch {
         return respond({ code: "server_error" }, 500);

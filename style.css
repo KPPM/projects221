@@ -1807,3 +1807,16 @@ html, body {
     color: inherit;
     text-decoration: underline;
 }
+
+.random-page .card-wrapper {
+    height: 560px;
+}
+
+.random-page .card-back .card-body {
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.random-page .card-back .card-meta-list {
+    margin: 8px 0;
+}
