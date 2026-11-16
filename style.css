@@ -288,10 +288,22 @@ body.dark-mode .card-info .store-status.is-closed { background: #343a40; color: 
 .detail-header-card { background: var(--card-bg); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 16px var(--shadow-color); margin-bottom: 25px; border: 1px solid var(--border-color); }
 .detail-cover { position: relative; width: 100%; height: 380px; }
 .detail-cover img { width: 100%; height: 100%; object-fit: cover; }
-.place-photo-label { display: inline-block; font-size: 12px; color: var(--text-muted); }
-.detail-cover > .place-photo-label {
-    position: absolute; top: 12px; left: 12px; z-index: 1;
-    padding: 3px 8px; border-radius: 6px; background: rgba(0,0,0,0.76); color: white;
+.place-image-missing {
+    display: grid; place-items: center; min-height: 80px; padding: 8px;
+    background: var(--input-bg); color: var(--text-muted); font-size: 12px; text-align: center;
+}
+.place-image-missing[hidden], img[hidden] { display: none !important; }
+.card-image > .place-image-missing, .detail-cover > .place-image-missing { height: 100%; }
+.detail-cover > .place-image-missing {
+    align-content: start; justify-items: start; gap: 6px; padding: 16px;
+}
+.detail-cover > .place-image-missing a {
+    position: relative; z-index: 1; color: var(--text-main); text-decoration: underline;
+}
+.search-page .discovery-card-back > .place-image-missing { flex: 0 0 82px; margin: 0; }
+.random-page .card-back > .place-image-missing { min-height: 96px; }
+.leaflet-popup-content .place-image-missing, .leaflet-popup-content img[referrerpolicy] {
+    width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;
 }
 .detail-cover-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 30px; background: linear-gradient(transparent, rgba(0,0,0,0.85)); color: #fff; }
 .detail-tag { background: var(--primary-red); color: #fff; font-size: 11px; padding: 4px 10px; border-radius: 6px; display: inline-block; margin-bottom: 8px; }
@@ -1771,3 +1783,17 @@ html, body {
     #detail-page .hours-row { gap: 10px; align-items: flex-start; }
     #detail-page .hours-row > span:last-child { text-align: right; }
 }
+
+.google-place-dialog {
+    width: min(92vw, 520px); max-height: 85vh; overflow: auto;
+    padding: 20px; border: 1px solid var(--border-color); border-radius: 14px;
+    color: var(--text-main); background: var(--card-bg);
+}
+.google-place-dialog::backdrop { background: rgba(0, 0, 0, .72); }
+.google-place-dialog form { display: flex; justify-content: flex-end; }
+.google-place-dialog img { max-width: 100%; height: auto; }
+.google-place-dialog figure { margin: 12px 0; }
+.google-place-dialog figcaption a { margin-inline-end: 8px; }
+#google-place-load { margin-bottom: 12px; }
+#google-place-load[hidden] { display: none; }
+.google-maps-attribution { color: var(--text-main); font-weight: 400; white-space: nowrap; }

@@ -157,13 +157,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. Shared display helpers (database data is the only restaurant source)
     // ==========================================
 
-    const FALLBACK_FOOD_IMAGES = [
-        'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&q=80&w=800',
-        'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&q=80&w=800',
-        'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&q=80&w=800',
-        'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=800'
-    ];
-
     function cleanTextValue(val) {
         if (val === null || val === undefined) return '';
         let s = String(val).trim();
@@ -190,26 +183,20 @@ document.addEventListener('DOMContentLoaded', () => {
     function getStoreHours(place) {
         const opens = normalizeStoreTime(place.open || place.open_time || place.opening_time);
         const closes = normalizeStoreTime(place.close || place.close_time || place.closing_time);
-        const estimate = place.magic_data?.hours;
-        const estimatedOpen = !opens && estimate?.source === 'category_estimate'
-            ? normalizeStoreTime(estimate.estimated_open) : '';
-        const estimatedClose = !closes && estimate?.source === 'category_estimate'
-            ? normalizeStoreTime(estimate.estimated_close) : '';
-        const displayOpen = opens || estimatedOpen;
-        const displayClose = closes || estimatedClose;
-        const times = [displayOpen && `เปิด ${displayOpen}`, displayClose && `ปิด ${displayClose}`].filter(Boolean);
+        const times = [opens ? `เปิด ${opens}` : 'ไม่ทราบเวลาเปิด', closes ? `ปิด ${closes}` : 'ไม่ทราบเวลาปิด'];
         return {
             opens, closes,
-            label: times.length
-                ? `${times.join(' · ')}${estimatedOpen || estimatedClose ? ' (เวลาประมาณ)' : ''}`
+            label: opens || closes
+                ? times.join(' · ')
                 : cleanTextValue(place.open_close || place['open-close']) || 'ยังไม่มีข้อมูลเวลา'
         };
     }
 
     function getLiveStoreStatus(place, now = new Date()) {
-        const declaredStatus = cleanTextValue(place.status);
-        if (place.magic_data?.kind === 'closed' || /ปิดถาวร|ปิดไปแล้ว|permanently closed/i.test(place.name || '')
-            || /ปิด|closed/i.test(declaredStatus)) return false;
+        const declaredStatus = String(place.status ?? '').trim();
+        if (/ปิดถาวร|ปิดไปแล้ว|permanently closed/i.test(place.name || '')
+            || /^(ปิด|ปิดอยู่|ปิดแล้ว|ปิดถาวร|closed|permanently closed)$/i.test(declaredStatus)) return false;
+        if (/^(เปิด|เปิดอยู่|open)$/i.test(declaredStatus)) return true;
         const { opens, closes } = getStoreHours(place);
         if (opens && closes && opens !== closes) {
             const currentTime = bangkokClock.format(now);
@@ -219,113 +206,54 @@ document.addEventListener('DOMContentLoaded', () => {
         return typeof place.is_open === 'boolean' ? place.is_open : null;
     }
 
-    // เลือกรูปค่ากลางที่ตรงกับประเภทร้านและชื่อร้านนั้นๆ (ใช้เฉพาะกรณีที่ร้านไม่มีรูปจาก Google Maps หรือลิงก์รูปเสีย)
-    function getRelevantFallbackImage(placeOrId) {
-        if (typeof placeOrId !== 'object' || placeOrId === null) {
-            const idx = Math.abs(Number(placeOrId) || 1) % FALLBACK_FOOD_IMAGES.length;
-            return FALLBACK_FOOD_IMAGES[idx];
-        }
-        const image = placeOrId.magic_data?.image;
-        if (image?.source === 'category_illustration' && /^https:\/\/images\.unsplash\.com\//.test(image.url)) {
-            return image.url;
-        }
-        if (image?.source === 'category_placeholder') {
-            return 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-        }
-        const idNum = Math.abs(Number(placeOrId.id) || 1);
-        const name = String(placeOrId.name || '').toLowerCase();
-        const cat = String(placeOrId.category || '').toLowerCase();
-        const feat = String(placeOrId.features || '').toLowerCase();
-        const snip = String(placeOrId.review_snippet || '').toLowerCase();
-        const comm = String(placeOrId.review_comment || '').toLowerCase();
-        const text = `${name} ${cat} ${feat} ${snip} ${comm}`;
-
-        // 1. บอร์ดเกมคาเฟ่
-        if (text.includes('board') || text.includes('บอร์ดเกม') || text.includes('onboard') || text.includes('tsuki')) {
-            return 'https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?auto=format&fit=crop&q=80&w=800';
-        }
-        // 2. มัทฉะ / ชาเขียวญี่ปุ่น
-        if (text.includes('matcha') || text.includes('มัทฉะ') || text.includes('มัจฉะ') || text.includes('kojicha') || text.includes('after peach')) {
-            return 'https://images.unsplash.com/photo-1515823064-d6e0c04616a7?auto=format&fit=crop&q=80&w=800';
-        }
-        // 3. ชานมไข่มุก / ชาไทย / ชาผลไม้
-        if (text.includes('boba') || text.includes('ชาตรามือ') || text.includes('ชาดง') || text.includes('ชาใต้') || text.includes('ชานม') || text.includes('fucha') || text.includes('fu cha') || text.includes('snowtee') || text.includes('why cha') || text.includes('yen yen') || text.includes('yodcha') || text.includes('rakun') || text.includes('จง ชง ดี')) {
-            return 'https://images.unsplash.com/photo-1558857563-b371033873b8?auto=format&fit=crop&q=80&w=800';
-        }
-        // 4. นมสด / ปังปิ้ง / โทสต์ / บิงซู / ของหวาน
-        if (text.includes('นมสด') || text.includes('นอ•มอ•นม') || text.includes('น้ำนมหนม') || text.includes('บิงซู') || text.includes('โทสต์') || text.includes('ปังเย็น') || text.includes('sweet secret') || text.includes('เครป') || text.includes('ice house')) {
-            return 'https://images.unsplash.com/photo-1484723091739-30a097e8f929?auto=format&fit=crop&q=80&w=800';
-        }
-        // 5. น้ำผลไม้ปั่น / สมูทตี้
-        if (text.includes('ปั่นแหลก') || text.includes('น้ำผลไม้ปั่น') || text.includes('สมูทตี้') || text.includes('happy drink')) {
-            return 'https://images.unsplash.com/photo-1505252585461-04db1eb84625?auto=format&fit=crop&q=80&w=800';
-        }
-        // 6. เบเกอรี่ / เค้ก / โฮมคาเฟ่
-        if (text.includes('bakery') || text.includes('เบเกอรี่') || text.includes('bake@dome') || text.includes('เค้ก') || text.includes('ละเมียด') || text.includes('โทกิ')) {
-            return 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=800';
-        }
-        // 7. หมูกระทะ / ชาบู / ปิ้งย่าง / สุกี้
-        if (text.includes('หมูกระทะ') || text.includes('หมูกะทะ') || text.includes('ชาบู') || text.includes('shabu') || text.includes('ย่างเนย') || text.includes('ปิ้งย่าง') || text.includes('หม้อไฟ') || text.includes('จิ้มจุ่ม')) {
-            return 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=800';
-        }
-        // 8. อาหารญี่ปุ่น / ซูชิ / ซาชิมิ / ข้าวด้ง
-        if (text.includes('sushi') || text.includes('ซูชิ') || text.includes('ซาชิมิ') || text.includes('โอชิเน') || text.includes('ดงมาชิ') || text.includes('เทปันยากิ') || text.includes('ญี่ปุ่น')) {
-            return 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?auto=format&fit=crop&q=80&w=800';
-        }
-        // 9. สเต็ก / อิตาเลียน / พิซซ่า / ข้าวหน้าเนื้อ
-        if (text.includes('steak') || text.includes('สเต็ก') || text.includes('italian') || text.includes('พิซซ่า') || text.includes('พันเนื้อ') || text.includes('เนื้อดรายเอจ')) {
-            return 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&q=80&w=800';
-        }
-        // 10. ส้มตำ / ยำ / อาหารไทย / ตามสั่ง / ก๋วยเตี๋ยว / ข้าวมันไก่
-        if (text.includes('ส้มตำ') || text.includes('ยำ') || text.includes('ลาบ') || text.includes('กะเพรา') || text.includes('ข้าวมันไก่') || text.includes('ก๋วยเตี๋ยว') || text.includes('ครัว') || text.includes('บ้านจิบ') || text.includes('อาหารใต้') || text.includes('ตามสั่ง') || text.includes('กรีนแคนทีน')) {
-            return 'https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&q=80&w=800';
-        }
-        // 11. ตลาดนัดและคอมมูนิตี้มอลล์
-        if (cat.includes('ตลาด') || cat.includes('ศูนย์การค้า') || text.includes('market') || text.includes('พลาซา') || text.includes('u-village')) {
-            return 'https://images.unsplash.com/photo-1533105079780-92b9be482077?auto=format&fit=crop&q=80&w=800';
-        }
-        // 12. บาร์ / ผับ / ร้านนั่งชิล
-        if (cat.includes('บาร์') || cat.includes('ผับ') || text.includes('bar') || text.includes('club') || text.includes('วงเหล้า')) {
-            return 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&q=80&w=800';
-        }
-
-        // 13. คาเฟ่และร้านกาแฟทั่วไป (หมุนเวียนรูปร้านกาแฟ/เอสเปรสโซ่บาร์ที่ตรงหมวดหมู่คาเฟ่ 100%)
-        const cafePhotos = [
-            'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&q=80&w=800',
-            'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&q=80&w=800',
-            'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&q=80&w=800',
-            'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=800',
-            'https://images.unsplash.com/photo-1445116572660-236099ec97a0?auto=format&fit=crop&q=80&w=800',
-            'https://images.unsplash.com/photo-1521017432531-fbd92d768814?auto=format&fit=crop&q=80&w=800'
-        ];
-        return cafePhotos[idNum % cafePhotos.length];
+    function httpUrl(value) {
+        const candidate = cleanTextValue(value);
+        return /^https?:\/\//i.test(candidate) ? candidate : '';
     }
 
-    // ดึงรูปหน้าปกเริ่มต้นจาก Google Maps ของแหล่งที่มาร้านนั้นๆ เป็นอันดับแรก
-    // หากร้านนั้นไม่มีรูป หรือลิงก์ไม่ใช่รูปภาพ ให้ใช้รูปค่ากลางที่เกี่ยวข้องกับร้านนั้นๆ แทน
-    function resolveHighResImage(rawUrl, placeOrSeed = 1) {
-        const fallback = getRelevantFallbackImage(placeOrSeed);
-        let urlCandidate = rawUrl;
-        if ((!urlCandidate || typeof urlCandidate !== 'string') && typeof placeOrSeed === 'object' && placeOrSeed !== null) {
-            urlCandidate = placeOrSeed.image_url || placeOrSeed.image || placeOrSeed.photo_url || placeOrSeed['รูป'] || '';
-        }
-        if (!urlCandidate || typeof urlCandidate !== 'string') return fallback;
-
-        const url = urlCandidate.trim();
-        if (!url || url === '·' || url === '-' || url.includes('default_user.png')) return fallback;
-
-        // หากเป็นลิงก์หน้าเว็บโซเชียลที่ไม่ใช่ไฟล์รูปภาพโดยตรง ให้ใช้รูปค่ากลางที่ตรงกับประเภทร้านแทน
-        if (url.includes('instagram.com/') || url.includes('tiktok.com/') || url.includes('facebook.com/') || url.includes('wongnai.com/restaurants/')) {
-            return fallback;
-        }
-
-        // ใช้ URL รูปจาก Google Maps (googleusercontent.com / streetviewpixels) ของร้านนั้นๆ เป็นอันดับแรกโดยไม่แก้ลายเซ็นพารามิเตอร์
-        return url;
+    function getPlaceImage(place) {
+        return [place.image_url, place.image, place.photo_url, place['รูป']]
+            .map(httpUrl)
+            .find(url => url && !/default_user\.png|(?:instagram|tiktok|facebook)\.com\/|wongnai\.com\/restaurants\//i.test(url)) || '';
     }
 
-    function getPlacePhotoLabel(place, resolvedUrl) {
-        if (resolvedUrl !== getRelevantFallbackImage(place)) return '';
-        return place.magic_data?.image?.source === 'category_placeholder' ? 'ยังไม่มีรูปสถานที่' : 'ภาพประกอบ';
+    function placeImageHTML(url, alt) {
+        const placeholder = '<span class="place-image-missing"';
+        if (!url) return `${placeholder}>ยังไม่มีรูปภาพ</span>`;
+        return `<img src="${escapeHTML(url)}" alt="${escapeHTML(alt)}" loading="lazy" referrerpolicy="no-referrer"
+            onerror="this.hidden=true; this.nextElementSibling.hidden=false;">${placeholder} hidden>โหลดรูปภาพไม่ได้</span>`;
+    }
+
+    function setPlaceImage(image, url, alt, mapsUrl = '') {
+        if (!image) return;
+        let placeholder = image.nextElementSibling;
+        if (!placeholder?.classList.contains('place-image-missing')) {
+            placeholder = document.createElement('span');
+            placeholder.className = 'place-image-missing';
+            image.insertAdjacentElement('afterend', placeholder);
+        }
+        image.alt = alt || 'รูปสถานที่';
+        image.hidden = !url;
+        placeholder.hidden = Boolean(url);
+        const message = url ? 'โหลดรูปภาพไม่ได้' : 'ยังไม่มีรูปภาพ';
+        if (mapsUrl) {
+            const description = document.createElement('span');
+            description.textContent = message;
+            const source = document.createElement('a');
+            source.href = mapsUrl;
+            source.target = '_blank';
+            source.rel = 'noopener noreferrer';
+            source.textContent = 'ดูรูปและข้อมูลร้านบน Google Maps';
+            placeholder.replaceChildren(description, source);
+        } else {
+            placeholder.textContent = message;
+        }
+        image.onerror = () => {
+            image.hidden = true;
+            placeholder.hidden = false;
+        };
+        if (url) image.src = url;
+        else image.removeAttribute('src');
     }
 
     // คำนวณสัญลักษณ์ช่วงราคา ($ / $$ / $$$) และข้อความช่วงราคาบาท (S2-01)
@@ -351,105 +279,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function getPriceDisplayInfo(place) {
         const validPrice = value => /^(?:[$]{1,3}|฿?\s*\d[\d,]*(?:\s*[-–]\s*฿?\s*\d[\d,]*)?\s*\+?\s*(?:บาท)?)$/.test(value);
-        const original = [place.price_range, place.price, place.features].map(cleanTextValue).find(validPrice);
-        const estimate = place.magic_data?.price;
-        const estimated = !original && estimate?.source === 'category_estimate' && validPrice(estimate.value);
-        const value = original || (estimated ? estimate.value : '');
-        const symbol = value ? getPlacePriceTiers(value)[0] : '';
+        const value = [place.price_range, place.price].map(cleanTextValue).find(validPrice);
         return {
-            symbol,
-            fullLabel: value ? `${value}${estimated ? ' (ราคาประมาณ)' : ''}` : 'ยังไม่มีข้อมูลราคา'
+            symbol: value ? getPlacePriceTiers(value)[0] : '',
+            fullLabel: value || 'ยังไม่มีข้อมูลราคา'
         };
     }
 
-    // ดึงเบอร์โทรศัพท์จากข้อมูลของร้าน (S2-01)
     function getPlacePhone(place) {
-        const directPhone = cleanTextValue(place.phone || place.phone_number || place.tel);
-        if (directPhone) return directPhone;
-
-        // ค้นหาเบอร์โทรหากแทรกอยู่ใน address หรือ review_comment
-        const combined = `${place.address || ''} ${place.review_comment || ''} ${place.features || ''}`;
-        const match = combined.match(/(0\d{1,2}[-\s]?\d{3}[-\s]?\d{3,4})/);
-        if (match) return match[1];
-
-        return 'ยังไม่มีข้อมูลเบอร์โทรศัพท์';
+        return cleanTextValue(place.phone || place.phone_number || place.tel) || 'ยังไม่มีข้อมูลเบอร์โทรศัพท์';
     }
 
-    // ดึงที่อยู่ฉบับสมบูรณ์ (S2-01)
     function getPlaceAddress(place) {
-        const rawAddr = cleanTextValue(place.address || place.location);
-        if (!rawAddr) {
-            return 'บริเวณมหาวิทยาลัยธรรมศาสตร์ ศูนย์รังสิต ต.คลองหนึ่ง อ.คลองหลวง จ.ปทุมธานี 12120';
-        }
-        if (!rawAddr.includes('ปทุมธานี') && !rawAddr.includes('คลองหลวง') && rawAddr.length < 35) {
-            return `${rawAddr} มธ. รังสิต ต.คลองหนึ่ง อ.คลองหลวง จ.ปทุมธานี 12120`;
-        }
-        return rawAddr;
+        return cleanTextValue(place.address || place.location) || 'ยังไม่มีข้อมูลที่อยู่';
     }
 
-    // ดึงเมนูแนะนำและจุดเด่นร้านค้าจากข้อมูลจริงใน Supabase (S2-01)
     function getPlaceRecommendedMenus(place) {
-        if (Array.isArray(place.popular_menus) && place.popular_menus.length > 0) {
-            return place.popular_menus;
-        }
-
-        const cat = (place.category || '').toLowerCase();
-        const name = (place.name || '');
-        const rawFeatures = cleanTextValue(place.features);
-        const rawSnippet = cleanTextValue(place.review_snippet);
-        const rawComment = cleanTextValue(place.review_comment);
-        const combinedText = `${name} ${rawFeatures} ${rawSnippet} ${rawComment}`;
-
-        // แยกรายการจาก features หากคั่นด้วยลูกน้ำ (,)
-        const featureParts = rawFeatures
-            .split(',')
-            .map(s => s.trim())
-            .filter(s => s.length > 2 && !/฿|\d+-\d+|เหมาะกับ|ที่จอดรถ|ห้องแอร์|เปิดดึก|ซื้อกลับ|จัดส่ง|ร้าน/.test(s));
-
-        let menuItems = [];
-
-        if (featureParts.length >= 2) {
-            menuItems = featureParts.slice(0, 4).map((itemName, idx) => ({
-                name: itemName,
-                price: idx === 0 ? 'แนะนำ' : 'ยอดฮิต',
-                image: FALLBACK_FOOD_IMAGES[(Number(place.id || 1) + idx) % FALLBACK_FOOD_IMAGES.length]
-            }));
-        } else if (cat.includes('คาเฟ่') || combinedText.includes('กาแฟ') || combinedText.includes('ชา') || combinedText.includes('นม')) {
-            if (combinedText.includes('มัทฉะ') || combinedText.includes('Matcha')) {
-                menuItems = [
-                    { name: 'พรีเมียมมัทฉะลาเต้', price: '75 ฿', image: 'https://images.unsplash.com/photo-1515823064-d6e0c04616a7?auto=format&fit=crop&q=80&w=400' },
-                    { name: 'โฮจิฉะนมสด', price: '70 ฿', image: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&q=80&w=400' },
-                    { name: 'เค้กโฮมเมด / เบเกอรี่', price: '85 ฿', image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&q=80&w=400' }
-                ];
-            } else if (combinedText.includes('นมสด') || combinedText.includes('ปัง')) {
-                menuItems = [
-                    { name: 'ปังโทสต์สังขยา / ไอศกรีม', price: '89 ฿', image: 'https://images.unsplash.com/photo-1484723091739-30a097e8f929?auto=format&fit=crop&q=80&w=400' },
-                    { name: 'นมสดพระนครเย็น', price: '45 ฿', image: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&q=80&w=400' },
-                    { name: 'ปังเย็นภูเขาไฟ', price: '99 ฿', image: 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?auto=format&fit=crop&q=80&w=400' }
-                ];
-            } else {
-                menuItems = [
-                    { name: 'Iced Americano / Espresso', price: '60 ฿', image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&q=80&w=400' },
-                    { name: 'Signature Dirty / Latte', price: '80 ฿', image: 'https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=400' },
-                    { name: 'ชาไทยพรีเมียม / โกโก้เข้มข้น', price: '55 ฿', image: 'https://images.unsplash.com/photo-1558857563-b371033873b8?auto=format&fit=crop&q=80&w=400' },
-                    { name: 'ครัวซองต์อบสด / เบเกอรี่', price: '65 ฿', image: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=400' }
-                ];
-            }
-        } else if (cat.includes('บาร์') || cat.includes('ผับ')) {
-            menuItems = [
-                { name: 'เซตกับแกล้มซิกเนเจอร์', price: '159 ฿', image: 'https://images.unsplash.com/photo-1541544741938-0af808871cc0?auto=format&fit=crop&q=80&w=400' },
-                { name: 'เอ็นข้อไก่ทอด / เฟรนช์ฟรายส์', price: '99 ฿', image: 'https://images.unsplash.com/photo-1576107232684-1279f3908594?auto=format&fit=crop&q=80&w=400' },
-                { name: 'เครื่องดื่มม็อกเทล & คราฟต์โซดา', price: '120 ฿', image: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&q=80&w=400' }
-            ];
-        } else {
-            menuItems = [
-                { name: 'เมนูซิกเนเจอร์ประจำร้าน', price: '65 ฿', image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=400' },
-                { name: 'ชุดอิ่มคุ้มขวัญใจนักศึกษา', price: '89 ฿', image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&q=80&w=400' },
-                { name: 'ของทานเล่นและเครื่องดื่ม', price: '45 ฿', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=400' }
-            ];
-        }
-
-        return menuItems;
+        if (!Array.isArray(place.popular_menus)) return [];
+        return place.popular_menus.map(item => typeof item === 'string' ? { name: item } : item)
+            .filter(item => item && typeof item.name === 'string' && item.name.trim());
     }
 
     function getPlaceSummaryText(place) {
@@ -463,26 +311,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (parts.length > 0) {
             return parts.join(' • ').replace(/\s+/g, ' ').trim();
         }
-        return `${place.name} (${place.category || 'ร้านค้า'}) ย่านมหาวิทยาลัยธรรมศาสตร์ ศูนย์รังสิต`;
-    }
-
-    function parseReviewCountNumber(rawCount) {
-        if (typeof rawCount === 'number' && !Number.isNaN(rawCount)) return rawCount;
-        if (!rawCount) return 0;
-        const cleaned = String(rawCount).replace(/,/g, '');
-        const match = cleaned.match(/\d+/);
-        return match ? parseInt(match[0], 10) : 0;
+        return 'ยังไม่มีข้อมูลรายละเอียดร้าน';
     }
 
     function getEffectivePlaceRatingAndCount(place) {
-        const baseRating = place.rating !== null && place.rating !== undefined && place.rating !== ''
-            ? parseFloat(place.rating)
-            : 0;
-        const baseCount = parseReviewCountNumber(place.review_count);
+        const rating = String(place.rating ?? '').trim();
+        const count = String(place.review_count ?? '').trim().replace(/,/g, '');
         return {
-            rating: Number.isNaN(baseRating) ? 0 : Number(baseRating.toFixed(1)),
-            reviewCount: Math.max(0, baseCount)
+            rating: rating && Number.isFinite(Number(rating)) && Number(rating) >= 0 && Number(rating) <= 5 ? Number(rating) : null,
+            reviewCount: /^\d+$/.test(count) ? Number(count) : null
         };
+    }
+
+    function placeRatingText(rating, reviewCount) {
+        if (rating === null) return reviewCount === null ? 'ยังไม่มีข้อมูลคะแนน' : `ยังไม่มีข้อมูลคะแนน (${reviewCount} รีวิว)`;
+        return `★ ${rating}${reviewCount === null ? '' : ` (${reviewCount} รีวิว)`}`;
     }
 
     // ==========================================
@@ -525,21 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const addRandomHistory = async (place) => {
         if (!place || !place.id) return;
-        const { rating } = getEffectivePlaceRatingAndCount(place);
-        const entry = {
-            id: place.id,
-            name: place.name || 'ร้านค้า',
-            category: place.category || 'ร้านอาหารและคาเฟ่',
-            rating,
-            price_range: place.price_range || place.price || '',
-            magic_data: place.magic_data,
-            open: place.open,
-            close: place.close,
-            image_url: place.image_url,
-            address: getPlaceAddress(place),
-            phone: getPlacePhone(place),
-            randomized_at: new Date().toISOString()
-        };
+        const entry = { id: place.id, randomized_at: new Date().toISOString() };
 
         let history = getRandomHistory();
         // ลบรายการซ้ำของร้านเดิมก่อนแทรกไว้บนสุดเพื่อแสดงเวลาสุ่มล่าสุด
@@ -716,24 +545,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const savedPlaces = getSavedPlaces();
         const isSaved = savedPlaces.includes(String(place.id));
         const heartClass = isSaved ? 'fa-solid fa-heart saved' : 'fa-regular fa-heart';
-        const badgeDiscountHTML = place.discount ? `<span class="badge badge-discount">${place.discount}</span>` : '';
+        const badgeDiscountHTML = place.discount ? `<span class="badge badge-discount">${escapeHTML(place.discount)}</span>` : '';
 
         const priceInfo = getPriceDisplayInfo(place);
         const { rating, reviewCount } = getEffectivePlaceRatingAndCount(place);
-        const imgUrl = resolveHighResImage(place.image_url, place);
-        const fallbackImg = getRelevantFallbackImage(place);
-        const photoLabel = getPlacePhotoLabel(place, imgUrl);
+        const imgUrl = getPlaceImage(place);
+        const openStatus = place.currently_open ?? getLiveStoreStatus(place);
+        const hoursLabel = escapeHTML(getStoreHours(place).label);
         const addressText = getPlaceAddress(place);
         const phoneText = getPlacePhone(place);
         const menus = getPlaceRecommendedMenus(place);
-        const topMenuNames = menus.slice(0, 2).map(m => m.name).join(', ');
+        const topMenuNames = menus.slice(0, 2).map(m => m.name).join(', ') || 'ยังไม่มีข้อมูลเมนู';
 
         const historyBadgeHTML = extraMeta.randomizedAt
             ? `<div class="history-time-badge"><i class="fa-solid fa-dice" style="color: var(--primary-red);"></i> สุ่มเมื่อ: ${new Date(extraMeta.randomizedAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })}</div>`
-            : '';
-
-        const distanceBadge = (place.distance_km !== undefined && place.distance_km !== 999)
-            ? `ห่าง ${place.distance_km} กม. • `
             : '';
 
         return `
@@ -744,37 +569,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 <a href="detail.html?id=${place.id}" style="text-decoration: none; color: inherit;">
                     <div class="card">
                         <div class="card-image">
-                            <img src="${imgUrl}" alt="${escapeHTML(place.name)}" referrerpolicy="no-referrer" loading="lazy" onerror="this.onerror=null; this.src='${fallbackImg}';">
-                            <span class="badge badge-rating">★ ${rating} (${reviewCount})</span>
-                            ${priceInfo.symbol ? `<span class="badge badge-price-tier">${priceInfo.symbol}</span>` : ''}
+                            ${placeImageHTML(imgUrl, place.name)}
+                            <span class="badge badge-rating">${placeRatingText(rating, reviewCount)}</span>
                             ${badgeDiscountHTML}
                         </div>
                         <div class="card-info">
                             ${historyBadgeHTML}
                             <div class="card-info-header">
-                                <h3 style="margin-bottom: 2px;">${escapeHTML(place.name)}</h3>
-                                ${photoLabel ? `<small class="place-photo-label">${photoLabel}</small>` : ''}
+                                <h3 style="margin-bottom: 2px;">${escapeHTML(place.name || 'ยังไม่มีข้อมูลชื่อร้าน')}</h3>
                             </div>
-                            ${typeof place.currently_open === 'boolean' ? `<span class="store-status ${place.currently_open ? 'is-open' : 'is-closed'}">${place.currently_open ? 'Open Now' : 'Closed'}</span>` : ''}
-                            <p class="desc" style="margin-bottom: 6px;">${place.category || 'ร้านอาหารและคาเฟ่'}</p>
+                            <span class="store-status ${openStatus === null ? '' : openStatus ? 'is-open' : 'is-closed'}">${openStatus === null ? 'ยังไม่ทราบสถานะ' : openStatus ? 'Open Now' : 'Closed'}</span>
+                            <p class="desc" style="margin-bottom: 6px;">${escapeHTML(place.category || 'ยังไม่มีข้อมูลหมวดหมู่')}</p>
                             
                             <div class="card-meta-list">
-                                <div class="card-meta-item" title="เมนูแนะนำ: ${topMenuNames}">
+                                <div class="card-meta-item" title="เมนูแนะนำ: ${escapeHTML(topMenuNames)}">
                                     <i class="fa-solid fa-utensils"></i>
-                                    <span><strong>เมนูแนะนำ:</strong> ${topMenuNames}</span>
+                                    <span><strong>เมนูแนะนำ:</strong> ${escapeHTML(topMenuNames)}</span>
                                 </div>
-                                <div class="card-meta-item" title="เบอร์โทรศัพท์: ${phoneText}">
+                                <div class="card-meta-item" title="เบอร์โทรศัพท์: ${escapeHTML(phoneText)}">
                                     <i class="fa-solid fa-phone"></i>
-                                    <span>${phoneText}</span>
+                                    <span>${escapeHTML(phoneText)}</span>
                                 </div>
-                                <div class="card-meta-item" title="ที่อยู่: ${addressText}">
+                                <div class="card-meta-item" title="ที่อยู่: ${escapeHTML(addressText)}">
                                     <i class="fa-solid fa-location-dot"></i>
-                                    <span>${distanceBadge}${addressText}</span>
+                                    <span>${escapeHTML(addressText)}</span>
                                 </div>
                             </div>
 
                             <div class="card-footer">
-                                <span><i class="fa-regular fa-clock"></i> ${escapeHTML(getStoreHours(place).label)}</span>
+                                <span title="${hoursLabel}"><i class="fa-regular fa-clock"></i> ${hoursLabel}</span>
                                 <span class="price">${escapeHTML(priceInfo.fullLabel)}</span>
                             </div>
                         </div>
@@ -818,25 +641,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // ฟังก์ชันช่วยแยกพิกัด Lat/Lng จาก URL หรือที่อยู่ (รองรับทุกรูปแบบใน Supabase)
     // ==========================================
     function parseLatLngFromPlace(place) {
-        if (place.lat && place.lng && !Number.isNaN(Number(place.lat)) && !Number.isNaN(Number(place.lng))) {
-            return { lat: parseFloat(place.lat), lng: parseFloat(place.lng) };
+        const url = String(place.google_map || place['google map'] || '').replace(/%2C/gi, ',');
+        const address = String(place.address || '');
+        const pin = url.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
+        const query = url.match(/(?:[?&](?:query|q)=)(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)(?=[&#]|$)/);
+        const addressPoint = address.match(/\((-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\)/);
+        const candidates = [[place.lat, place.lng], pin?.slice(1), query?.slice(1), addressPoint?.slice(1)];
+        for (const pair of candidates) {
+            if (!pair || pair.some(value => value == null || String(value).trim() === '')) continue;
+            const [lat, lng] = pair.map(Number);
+            if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+                return { lat, lng };
+            }
         }
-        const url = String(place.google_map || place['google map'] || '');
-        const addr = String(place.address || '');
-
-        // รูปแบบที่ 1: !3d14.078!4d100.604
-        const m1Lat = url.match(/!3d(-?\d+\.\d+)/);
-        const m1Lng = url.match(/!4d(-?\d+\.\d+)/);
-        if (m1Lat && m1Lng) return { lat: parseFloat(m1Lat[1]), lng: parseFloat(m1Lng[1]) };
-
-        // รูปแบบที่ 2: query=14.0663,100.6093 หรือ @14.0663,100.6093
-        const m2 = url.match(/(?:query=|q=|@)(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
-        if (m2) return { lat: parseFloat(m2[1]), lng: parseFloat(m2[2]) };
-
-        // รูปแบบที่ 3: พิกัดในวงเล็บท้ายที่อยู่ (14.0663, 100.6093)
-        const m3 = addr.match(/\((-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\)/);
-        if (m3) return { lat: parseFloat(m3[1]), lng: parseFloat(m3[2]) };
-
         return null;
     }
 
@@ -1009,7 +826,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ...place,
                     rating,
                     review_count: reviewCount,
-                    computed_distance: computedDistance !== undefined ? computedDistance : 999,
+                    computed_distance: Number.isFinite(computedDistance) ? computedDistance : null,
                     currently_open: getLiveStoreStatus(place)
                 };
             });
@@ -1021,7 +838,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (searchQuery) {
                     const matchName = place.name ? place.name.toLowerCase().includes(searchQuery) : false;
                     const matchCat = place.category ? place.category.toLowerCase().includes(searchQuery) : false;
-                    const matchAddr = getPlaceAddress(place).toLowerCase().includes(searchQuery);
+                    const matchAddr = cleanTextValue(place.address || place.location).toLowerCase().includes(searchQuery);
                     const matchMenu = getPlaceRecommendedMenus(place).some(m => m.name.toLowerCase().includes(searchQuery));
                     if (!matchName && !matchCat && !matchAddr && !matchMenu) return false;
                 }
@@ -1040,7 +857,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (maxDistanceVal !== 'all') {
                     const limit = parseFloat(maxDistanceVal);
-                    if (place.computed_distance > limit) return false;
+                    if (place.computed_distance === null || place.computed_distance > limit) return false;
                 }
 
                 if (isRatingChecked && (place.rating === undefined || place.rating < 4.0)) return false;
@@ -1056,7 +873,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (sortVal === 'rating' || sortVal === 'คะแนนสูงสุด') {
                 currentFilteredPlaces.sort((a, b) => (b.rating || 0) - (a.rating || 0));
             } else if (sortVal === 'distance' || sortVal === 'ระยะทางใกล้ที่สุด') {
-                currentFilteredPlaces.sort((a, b) => a.computed_distance - b.computed_distance);
+                currentFilteredPlaces.sort((a, b) => (a.computed_distance ?? Infinity) - (b.computed_distance ?? Infinity));
             } else {
                 currentFilteredPlaces.sort((a, b) => Number(b.currently_open) - Number(a.currently_open));
             }
@@ -1081,8 +898,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const placesToShow = currentFilteredPlaces.slice(0, displayLimit);
             placesToShow.forEach(place => {
-                const displayPlace = { ...place, distance_km: place.computed_distance !== 999 ? place.computed_distance : place.distance_km };
-                cardGrid.innerHTML += createCardHTML(displayPlace);
+                cardGrid.innerHTML += createCardHTML(place);
             });
 
             const loadBtn = document.querySelector('.load-more-btn');
@@ -1128,15 +944,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             window.setTimeout(() => {
                 const image = document.getElementById('discovery-random-image');
-                if (image) {
-                    image.onerror = function () { this.onerror = null; this.src = getRelevantFallbackImage(selected); };
-                    image.src = resolveHighResImage(selected.image_url, selected);
-                }
+                setPlaceImage(image, getPlaceImage(selected), selected.name);
                 const title = document.getElementById('discovery-random-title');
                 const meta = document.getElementById('discovery-random-meta');
                 const link = document.getElementById('discovery-random-link');
-                if (title) title.textContent = selected.name || 'ร้านแนะนำสำหรับคุณ';
-                if (meta) meta.textContent = `${getDiscoveryCategory(selected) || 'ร้านค้า'} · ★ ${rating || '-'} · ${priceInfo.fullLabel}`;
+                if (title) title.textContent = selected.name || 'ยังไม่มีข้อมูลชื่อร้าน';
+                if (meta) meta.textContent = `${selected.category || 'ยังไม่มีข้อมูลหมวดหมู่'} · ${placeRatingText(rating, null)} · ${priceInfo.fullLabel}`;
                 if (link) link.href = `detail.html?id=${selected.id}`;
 
                 discoveryRandomStage?.classList.remove('is-shuffling');
@@ -1297,8 +1110,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const randomHistoryCountEl = document.getElementById('random-history-count');
     const clearRandomHistoryBtn = document.getElementById('clear-random-history-btn');
 
-    const renderRandomHistorySection = () => {
+    let historyRequest = 0;
+    const renderRandomHistorySection = async () => {
         if (!randomHistoryGrid) return;
+        const request = ++historyRequest;
         const history = getRandomHistory();
         if (randomHistoryCountEl) randomHistoryCountEl.textContent = history.length;
 
@@ -1307,10 +1122,23 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        randomHistoryGrid.innerHTML = '';
-        history.forEach(item => {
-            randomHistoryGrid.innerHTML += createCardHTML(item, { randomizedAt: item.randomized_at });
-        });
+        randomHistoryGrid.innerHTML = '<p class="data-state">กำลังโหลดประวัติ...</p>';
+        try {
+            if (!supabaseClient) throw new Error('Supabase unavailable');
+            const { data, error } = await supabaseClient.from('places').select('*').in('id', history.map(item => item.id));
+            if (error) throw error;
+            if (request !== historyRequest) return;
+            const places = new Map((data || []).map(place => [String(place.id), place]));
+            const cards = history.map(item => {
+                const place = places.get(String(item.id));
+                return place ? createCardHTML(place, { randomizedAt: item.randomized_at }) : '';
+            }).join('');
+            randomHistoryGrid.innerHTML = cards || '<p class="data-state">ไม่พบร้านในประวัติที่ยังแสดงได้</p>';
+        } catch (error) {
+            if (request === historyRequest) {
+                randomHistoryGrid.innerHTML = '<p class="data-state data-state-error">โหลดประวัติร้านจากฐานข้อมูลไม่ได้</p>';
+            }
+        }
     };
 
     if (randomHistoryGrid) {
@@ -1486,16 +1314,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // 8. ระบบดึงข้อมูลร้าน (detail.html - S2-01) และ ระบบรีวิว Real-time (review.html & detail.html - S2-02)
     // ==========================================
     const urlParams = new URLSearchParams(window.location.search);
-    const globalPlaceId = urlParams.get('id') || '1';
+    const globalPlaceId = urlParams.get('id');
 
     // สร้าง HTML ของแต่ละรายการรีวิว (รองรับทั้งรูปโปรไฟล์ Google และตัวอักษรย่อ)
     function buildReviewItemHTML(review, isNewHighlight = false) {
-        const dateObj = review.created_at ? new Date(review.created_at) : new Date();
+        const dateObj = new Date(review.created_at || '');
         const dateStr = !Number.isNaN(dateObj.getTime())
             ? dateObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-            : 'เมื่อสักครู่';
-        const starCount = Math.min(5, Math.max(1, parseInt(review.rating, 10) || 5));
-        const stars = '⭐'.repeat(starCount) + '☆'.repeat(5 - starCount);
+            : 'ยังไม่มีข้อมูลวันที่';
+        const score = Number(review.rating);
+        const hasScore = Number.isInteger(score) && score >= 1 && score <= 5;
+        const stars = hasScore ? '⭐'.repeat(score) + '☆'.repeat(5 - score) : 'ยังไม่มีข้อมูลคะแนน';
 
         let avatarHTML = `<div class="review-avatar">${escapeHTML((review.user_avatar || review.user_name || 'U').charAt(0).toUpperCase())}</div>`;
         if (review.user_avatar && (String(review.user_avatar).startsWith('http') || String(review.user_avatar).startsWith('data:'))) {
@@ -1506,7 +1335,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (Array.isArray(review.image_urls) && review.image_urls.length > 0) {
             imagesHTML = '<div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">';
             review.image_urls.forEach(url => {
-                imagesHTML += `<img src="${escapeHTML(url)}" alt="Review photo" style="width:84px; height:84px; object-fit:cover; border-radius:8px; border:1px solid var(--border-color); cursor:pointer;" onclick="const cov=document.getElementById('detail-cover-image'); if(cov) cov.src=this.src;">`;
+                imagesHTML += `<img src="${escapeHTML(url)}" alt="Review photo" style="width:84px; height:84px; object-fit:cover; border-radius:8px; border:1px solid var(--border-color);">`;
             });
             imagesHTML += '</div>';
         }
@@ -1514,11 +1343,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return `
             <div class="review-item ${isNewHighlight ? 'new-review-highlight' : ''}">
                 <div class="review-header">
-                    <div class="review-user">${avatarHTML}<span>${escapeHTML(review.user_name || 'นักศึกษา มธ.')}</span></div>
+                    <div class="review-user">${avatarHTML}<span>${escapeHTML(review.user_name || 'ยังไม่มีข้อมูลชื่อผู้รีวิว')}</span></div>
                     <span class="review-date" style="font-size: 12px; color: var(--text-muted);">${dateStr}</span>
                 </div>
-                <div class="review-stars">${stars} <span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">(${starCount}.0)</span></div>
-                <p class="review-text" style="margin-top: 6px;">${escapeHTML(review.comment)}</p>
+                <div class="review-stars">${stars}</div>
+                <p class="review-text" style="margin-top: 6px;">${escapeHTML(review.comment || 'ยังไม่มีข้อความรีวิว')}</p>
                 ${imagesHTML}
             </div>`;
     }
@@ -1540,6 +1369,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (error) throw error;
         const { rating: newAvg, reviewCount: newCount } = getEffectivePlaceRatingAndCount(data);
 
+        if (newAvg === null || newCount === null) throw new Error('Missing review summary');
         place.rating = newAvg;
         place.review_count = String(newCount);
 
@@ -1585,6 +1415,113 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---------------------------------------------------------
     // 8.1 ฟังก์ชันสำหรับหน้า detail.html (S2-01 & S2-02)
     // ---------------------------------------------------------
+    function bindGooglePlaceDetails(place, mapsUrl) {
+        const button = document.getElementById('google-place-load');
+        const dialog = document.getElementById('google-place-dialog');
+        const result = document.getElementById('google-place-result');
+        if (!button || !dialog?.showModal || !result || !supabaseClient) return;
+        let verifiedId = place.google_place_id;
+        if (!verifiedId && mapsUrl) {
+            verifiedId = new URL(mapsUrl).searchParams.get('query_place_id');
+        }
+        if (!verifiedId) return;
+
+        function appendText(tag, value, parent = result) {
+            const element = document.createElement(tag);
+            element.textContent = value;
+            parent.append(element);
+            return element;
+        }
+
+        function appendLink(label, url, parent = result) {
+            const link = appendText('a', label, parent);
+            link.href = url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+        }
+
+        button.hidden = false;
+        button.addEventListener('click', async () => {
+            button.disabled = true;
+            result.textContent = 'กำลังโหลดข้อมูลจาก Google Maps…';
+            dialog.showModal();
+            try {
+                const { data: sessionData } = await supabaseClient.auth.getSession();
+                if (!sessionData?.session) {
+                    result.textContent = 'กรุณาเข้าสู่ระบบก่อนโหลดข้อมูลจาก Google Maps';
+                    appendText('p', ' ').append(Object.assign(document.createElement('a'), {
+                        href: 'login.html', textContent: 'เข้าสู่ระบบ'
+                    }));
+                    return;
+                }
+
+                const { data, error } = await supabaseClient.functions.invoke('google-place', { body: { id: place.id } });
+                if (error) {
+                    const failure = await error.context?.json?.().catch(() => null);
+                    const messages = {
+                        quota: 'ถึงเพดานคำขอ Google Maps แล้ว',
+                        disabled: 'ระบบดึงข้อมูลจาก Google Maps ยังไม่ได้เปิดใช้งาน',
+                        no_place_id: 'ยังไม่มีรหัสสาขาที่ตรวจสอบแล้ว',
+                        login: 'กรุณาเข้าสู่ระบบใหม่'
+                    };
+                    throw new Error(messages[failure?.code] || 'โหลดข้อมูลจาก Google Maps ไม่สำเร็จ');
+                }
+                if (!dialog.open) return;
+                result.replaceChildren();
+                if (data.name) appendText('h3', data.name);
+                if (data.address) appendText('p', data.address);
+                if (data.phone) appendText('p', `เบอร์โทร ${data.phone}`);
+                if (Array.isArray(data.hours) && data.hours.length) {
+                    const list = appendText('ul', '');
+                    data.hours.forEach(day => appendText('li', day, list));
+                }
+                const startPrice = data.price?.startPrice;
+                const endPrice = data.price?.endPrice;
+                if (startPrice?.units != null || endPrice?.units != null) {
+                    const money = amount => {
+                        if (!amount?.currencyCode) return '';
+                        return new Intl.NumberFormat('th-TH', { style: 'currency', currency: amount.currencyCode })
+                            .format(Number(amount.units ?? 0) + Number(amount.nanos ?? 0) / 1e9);
+                    };
+                    appendText('p', `ช่วงราคา ${[money(startPrice), money(endPrice)].filter(Boolean).join(' – ')}`);
+                }
+                const photoUri = httpUrl(data.photo?.uri);
+                if (photoUri) {
+                    const figure = appendText('figure', '');
+                    const photo = appendText('img', '', figure);
+                    photo.alt = data.name || 'รูปสถานที่จาก Google Maps';
+                    photo.referrerPolicy = 'no-referrer';
+                    photo.src = photoUri;
+                    photo.onerror = () => { photo.hidden = true; };
+                    const authors = Array.isArray(data.photo?.authors) ? data.photo.authors : [];
+                    if (authors.length) {
+                        const caption = appendText('figcaption', '', figure);
+                        authors.forEach(author => {
+                            const authorUrl = httpUrl(author.uri);
+                            if (authorUrl) appendLink(author.displayName || 'ผู้ถ่ายภาพ', authorUrl, caption);
+                            else appendText('span', author.displayName || '', caption);
+                        });
+                    }
+                }
+                if (Array.isArray(data.attributions)) {
+                    data.attributions.forEach(source => {
+                        const sourceUrl = httpUrl(source.providerUri);
+                        if (sourceUrl) appendLink(source.provider || 'ผู้ให้ข้อมูล', sourceUrl, appendText('p', ''));
+                        else if (source.provider) appendText('p', source.provider);
+                    });
+                }
+                const sourceUrl = httpUrl(data.mapsUrl) || mapsUrl;
+                if (sourceUrl) appendLink('เปิดร้านนี้บน Google Maps', sourceUrl);
+            } catch (error) {
+                result.textContent = error.message || 'โหลดข้อมูลจาก Google Maps ไม่สำเร็จ';
+                if (mapsUrl) appendLink('เปิดร้านนี้บน Google Maps', mapsUrl, appendText('p', ''));
+            } finally {
+                button.disabled = false;
+            }
+        });
+        dialog.addEventListener('close', () => result.replaceChildren());
+    }
+
     const loadPlaceDetail = async () => {
         const detailPage = document.getElementById('detail-page');
         if (!detailPage) return;
@@ -1607,24 +1544,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const pageTitle = document.getElementById('detail-page-title');
         if (pageTitle) pageTitle.textContent = `${place.name} - TU Aroi`;
 
-        const relevantFallbackImg = getRelevantFallbackImage(place);
-        const coverImgUrl = resolveHighResImage(place.image_url, place);
+        const coords = parseLatLngFromPlace(place);
+        const mapsUrl = httpUrl(place.google_map || place['google map'])
+            || (coords ? `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}` : '');
+        bindGooglePlaceDetails(place, mapsUrl);
+        const coverImgUrl = getPlaceImage(place);
         const coverImgEl = document.getElementById('detail-cover-image');
-        if (coverImgEl) {
-            coverImgEl.referrerPolicy = 'no-referrer';
-            coverImgEl.onerror = function () {
-                this.onerror = null;
-                this.src = relevantFallbackImg;
-            };
-            coverImgEl.src = coverImgUrl;
-            const label = getPlacePhotoLabel(place, coverImgUrl);
-            if (label) {
-                const caption = document.createElement('small');
-                caption.className = 'place-photo-label';
-                caption.textContent = label;
-                coverImgEl.insertAdjacentElement('afterend', caption);
-            }
-        }
+        setPlaceImage(coverImgEl, coverImgUrl, place.name, mapsUrl);
 
         const { rating, reviewCount } = getEffectivePlaceRatingAndCount(place);
         const priceInfo = getPriceDisplayInfo(place);
@@ -1632,12 +1558,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const phoneText = getPlacePhone(place);
         const summaryText = getPlaceSummaryText(place);
 
-        document.getElementById('detail-category').textContent = place.category || 'ร้านอาหารและคาเฟ่';
-        document.getElementById('detail-name').textContent = place.name;
+        document.getElementById('detail-category').textContent = place.category || 'ยังไม่มีข้อมูลหมวดหมู่';
+        document.getElementById('detail-name').textContent = place.name || 'ยังไม่มีข้อมูลชื่อร้าน';
         document.getElementById('detail-summary').textContent = summaryText;
 
         const ratingBadge = document.getElementById('detail-rating-badge');
-        if (ratingBadge) ratingBadge.textContent = `⭐ ${rating.toFixed(1)} (${reviewCount} รีวิว)`;
+        if (ratingBadge) ratingBadge.textContent = placeRatingText(rating, reviewCount);
 
         const priceBadge = document.getElementById('detail-price-badge');
         if (priceBadge) priceBadge.textContent = priceInfo.fullLabel;
@@ -1668,7 +1594,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (phoneElement) {
             const dialable = phoneText.match(/0\d{1,2}[-\s]?\d{3}[-\s]?\d{3,4}/);
             if (dialable) {
-                phoneElement.innerHTML = `<a href="tel:${dialable[0].replace(/[-\s]/g, '')}" style="color: var(--primary-red); font-weight: 600; text-decoration: underline;">${phoneText}</a>`;
+                phoneElement.innerHTML = `<a href="tel:${dialable[0].replace(/[-\s]/g, '')}" style="color: var(--primary-red); font-weight: 600; text-decoration: underline;">${escapeHTML(phoneText)}</a>`;
             } else {
                 phoneElement.textContent = phoneText;
             }
@@ -1678,9 +1604,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (priceElement) priceElement.textContent = priceInfo.fullLabel;
 
         const gmapLink = document.getElementById('detail-gmap-link');
-        const rawMapUrl = place.google_map || place['google map'];
         if (gmapLink) {
-            gmapLink.href = rawMapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name + ' ธรรมศาสตร์ รังสิต')}`;
+            if (mapsUrl) {
+                gmapLink.href = mapsUrl;
+            } else {
+                gmapLink.removeAttribute('href');
+                gmapLink.textContent = 'ยังไม่มีข้อมูลพิกัด';
+            }
         }
 
         // เวลาทำการและรายละเอียดเพิ่มเติม
@@ -1688,8 +1618,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (hoursContainer) {
             let hoursHTML = '<div id="detail-live-store-status" class="hours-row detail-live-store-status" aria-live="polite"></div>';
             hoursHTML += `<div class="hours-row"><span>เวลาทำการ</span><span>${escapeHTML(hours.label)}</span></div>`;
-            hoursHTML += `<div class="hours-row"><span>ระดับราคา ($/$$/$$$)</span><span style="font-weight: bold; color: var(--accent-gold);">${escapeHTML(priceInfo.fullLabel)}</span></div>`;
-            hoursHTML += `<div class="hours-row"><span>เบอร์ติดต่อร้านค้า</span><span style="font-weight: bold; color: var(--text-main);">${phoneText}</span></div>`;
+            hoursHTML += `<div class="hours-row"><span>ช่วงราคา</span><span style="font-weight: bold; color: var(--accent-gold);">${escapeHTML(priceInfo.fullLabel)}</span></div>`;
+            hoursHTML += `<div class="hours-row"><span>เบอร์ติดต่อร้านค้า</span><span style="font-weight: bold; color: var(--text-main);">${escapeHTML(phoneText)}</span></div>`;
             hoursContainer.innerHTML = hoursHTML;
         }
         updateDetailStoreStatus();
@@ -1702,17 +1632,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // จุดเด่นและสิ่งอำนวยความสะดวก (Features Tags)
         const featuresContainer = document.getElementById('detail-features');
         if (featuresContainer) {
-            const rawFeat = cleanTextValue(place.features);
-            const rawSnip = cleanTextValue(place.review_snippet);
-            const tags = [
-                ...(rawFeat ? rawFeat.split(',').map(s => s.trim()) : []),
-                ...(rawSnip && rawSnip.length < 30 ? [rawSnip] : []),
-                'นั่งรับประทานที่ร้าน',
-                'สั่งกลับบ้าน',
-                'เหมาะกับนักศึกษา มธ.'
-            ].filter((v, i, a) => v && v.length > 1 && !/^฿/.test(v) && a.indexOf(v) === i).slice(0, 6);
-
-            featuresContainer.innerHTML = tags.map(t => `<span class="feature-tag-chip"><i class="fa-solid fa-check-circle"></i> ${t}</span>`).join('');
+            const tags = cleanTextValue(place.features).split(',').map(tag => tag.trim())
+                .filter(tag => tag && !/^฿/.test(tag));
+            featuresContainer.innerHTML = tags.map(tag => `<span class="feature-tag-chip">${escapeHTML(tag)}</span>`).join('')
+                || '<p class="data-state">ยังไม่มีข้อมูลจุดเด่นของร้าน</p>';
         }
 
         // S2-01: เมนูแนะนำและรูปภาพแกลเลอรี
@@ -1724,32 +1647,31 @@ document.addEventListener('DOMContentLoaded', () => {
         if (menuContainer) {
             menuContainer.innerHTML = recommendedMenus.map(menu => `
                 <div class="menu-item">
-                    <img src="${menu.image}" alt="${menu.name}" loading="lazy" onerror="this.onerror=null; this.src='${FALLBACK_FOOD_IMAGES[1]}';">
-                    <p>${menu.name}</p>
-                    <span>${menu.price}</span>
+                    ${placeImageHTML(httpUrl(menu.image), menu.name)}
+                    <p>${escapeHTML(menu.name)}</p>
+                    <span>${escapeHTML(cleanTextValue(menu.price) || (menu.price === 0 ? 0 : 'ยังไม่มีข้อมูลราคา'))}</span>
                 </div>
-            `).join('');
+            `).join('') || '<p class="data-state">ยังไม่มีข้อมูลเมนู</p>';
         }
 
         // สร้างแกลเลอรีรูปภาพใต้ภาพปก (คลิกเพื่อดูรูปใหญ่ได้ทันที)
         const galleryContainer = document.getElementById('detail-gallery');
-        const renderGallery = (extraReviewPhotos = []) => {
+        const renderGallery = () => {
             if (!galleryContainer) return;
             const galleryUrls = [
                 coverImgUrl,
-                ...recommendedMenus.map(m => m.image),
-                ...extraReviewPhotos
+                ...recommendedMenus.map(m => httpUrl(m.image))
             ].filter((u, idx, arr) => u && arr.indexOf(u) === idx).slice(0, 8);
 
             galleryContainer.innerHTML = galleryUrls.map((url, idx) => `
-                <img src="${escapeHTML(url)}" alt="ภาพร้าน ${idx + 1}" referrerpolicy="no-referrer" class="detail-gallery-thumb ${idx === 0 ? 'active' : ''}" onerror="this.onerror=null; if(${idx === 0}) { this.src='${relevantFallbackImg}'; } else { this.style.display='none'; }">
+                <img src="${escapeHTML(url)}" alt="ภาพร้าน ${idx + 1}" referrerpolicy="no-referrer" class="detail-gallery-thumb ${idx === 0 ? 'active' : ''}" onerror="this.hidden=true;">
             `).join('');
 
             galleryContainer.querySelectorAll('.detail-gallery-thumb').forEach(thumb => {
                 thumb.addEventListener('click', () => {
                     galleryContainer.querySelectorAll('.detail-gallery-thumb').forEach(t => t.classList.remove('active'));
                     thumb.classList.add('active');
-                    if (coverImgEl) coverImgEl.src = thumb.src;
+                    setPlaceImage(coverImgEl, thumb.src, place.name, mapsUrl);
                 });
             });
         };
@@ -1757,8 +1679,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // แผนที่ Leaflet เฉพาะร้าน
         const mapIframe = document.getElementById('detail-map');
-        if (mapIframe && typeof L !== 'undefined') {
-            const coords = parseLatLngFromPlace(place) || { lat: 14.0722, lng: 100.6067 };
+        if (mapIframe && (!coords || typeof L === 'undefined')) {
+            const message = document.createElement('p');
+            message.className = 'data-state';
+            message.textContent = coords ? 'โหลดแผนที่ไม่ได้' : 'ยังไม่มีข้อมูลพิกัดร้าน';
+            mapIframe.replaceWith(message);
+        } else if (mapIframe && coords) {
             const mapContainer = document.createElement('div');
             mapContainer.id = 'detail-leaflet-map';
             mapContainer.style.width = '100%';
@@ -1775,7 +1701,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             L.marker([coords.lat, coords.lng], { icon: redIcon })
                 .addTo(map)
-                .bindPopup(`<b style="font-family:'Kanit',sans-serif;">${escapeHTML(place.name)}</b><br><small>${addressText}</small>`)
+                .bindPopup(`<b style="font-family:'Kanit',sans-serif;">${escapeHTML(place.name)}</b><br><small>${escapeHTML(addressText)}</small>`)
                 .openPopup();
         }
 
@@ -1786,13 +1712,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const detailReviewsCountLabel = document.getElementById('detail-reviews-count-label');
         const detailReviewsTotalLink = document.getElementById('detail-reviews-total-link');
 
-        if (detailReviewsAvg) detailReviewsAvg.textContent = rating.toFixed(1);
-        if (detailReviewsStars) {
+        if (detailReviewsAvg) detailReviewsAvg.textContent = rating?.toFixed(1) ?? '—';
+        if (detailReviewsStars && rating !== null) {
             const full = Math.round(rating);
             detailReviewsStars.textContent = '⭐'.repeat(full) + '☆'.repeat(Math.max(0, 5 - full));
         }
-        if (detailReviewsCountLabel) detailReviewsCountLabel.textContent = `จากทั้งหมด ${reviewCount} รีวิว`;
-        if (detailReviewsTotalLink) detailReviewsTotalLink.textContent = `ดูรีวิวทั้งหมดและให้คะแนน (${reviewCount}) →`;
+        if (detailReviewsCountLabel) detailReviewsCountLabel.textContent = reviewCount === null ? 'ยังไม่มีข้อมูลจำนวนรีวิว' : `จากทั้งหมด ${reviewCount} รีวิว`;
+        if (detailReviewsTotalLink) detailReviewsTotalLink.textContent = `ดูรีวิวทั้งหมดและให้คะแนน${reviewCount === null ? '' : ` (${reviewCount})`} →`;
 
         const renderDetailReviews = async () => {
             if (!reviewContainer) return;
@@ -1808,11 +1734,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             reviewContainer.innerHTML = reviews.slice(0, 5).map(r => buildReviewItemHTML(r)).join('');
 
-            const extraPhotos = [];
-            reviews.forEach(r => {
-                if (Array.isArray(r.image_urls)) extraPhotos.push(...r.image_urls);
-            });
-            if (extraPhotos.length > 0) renderGallery(extraPhotos);
+
         };
 
         await renderDetailReviews();
@@ -1913,7 +1835,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // อัปเดตปุ่มกลับไปหน้าร้าน
         const backLink = document.querySelector('.back-link');
-        if (backLink) backLink.href = `detail.html?id=${globalPlaceId}`;
+        if (backLink) backLink.href = globalPlaceId ? `detail.html?id=${encodeURIComponent(globalPlaceId)}` : 'search.html';
 
         let currentPlace = null;
         if (supabaseClient && globalPlaceId) {
@@ -1940,8 +1862,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const priceInfo = getPriceDisplayInfo(currentPlace);
 
         if (titleH1) titleH1.textContent = currentPlace.name;
-        if (ratingSpan) ratingSpan.innerHTML = `⭐ ${initRating.toFixed(1)}`;
-        if (countSpan) countSpan.textContent = `(${initCount} รีวิว)`;
+        if (ratingSpan) ratingSpan.textContent = placeRatingText(initRating, null);
+        if (countSpan) countSpan.textContent = initCount === null ? 'ยังไม่มีข้อมูลจำนวนรีวิว' : `(${initCount} รีวิว)`;
         if (priceSpan) priceSpan.textContent = `• ช่วงราคา ${priceInfo.fullLabel}`;
 
         // ดึงชื่อผู้ใช้จาก Google Account มาใส่ในช่องชื่อผู้รีวิวอัตโนมัติ (ถ้าล็อกอินอยู่)
@@ -2145,13 +2067,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (userLocationMarker) map.removeLayer(userLocationMarker);
             if (userLocationAccuracy) map.removeLayer(userLocationAccuracy);
 
-            userLocationAccuracy = L.circle(latLng, {
-                radius: accuracy || 100,
+            userLocationAccuracy = Number.isFinite(accuracy) ? L.circle(latLng, {
+                radius: accuracy,
                 color: '#2563eb',
                 fillColor: '#60a5fa',
                 fillOpacity: 0.2,
                 weight: 1
-            }).addTo(map);
+            }).addTo(map) : null;
 
             userLocationMarker = L.circleMarker(latLng, {
                 radius: 9,
@@ -2179,11 +2101,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 error => {
                     console.warn('Geolocation error:', error.message);
-                    const fallbackPosition = {
-                        coords: { latitude: 14.0722, longitude: 100.6067, accuracy: 500 }
-                    };
-                    showUserLocation(fallbackPosition, shouldCenter);
-                    if (onSuccess) onSuccess();
+                    if (onError) onError();
                 },
                 { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
             );
@@ -2211,25 +2129,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             places.forEach(place => {
-                const mapUrl = place.google_map || place['google map'] || '';
+                const mapUrl = httpUrl(place.google_map || place['google map']);
                 const coords = parseLatLngFromPlace(place);
 
                 if (coords && !Number.isNaN(coords.lat) && !Number.isNaN(coords.lng)) {
                     const marker = L.marker([coords.lat, coords.lng], { icon: redIcon }).addTo(map);
-                    const imageUrl = resolveHighResImage(place.image_url, place);
-                    const mapFallbackImg = getRelevantFallbackImage(place);
+                    const imageUrl = getPlaceImage(place);
                     const priceInfo = getPriceDisplayInfo(place);
                     const { rating } = getEffectivePlaceRatingAndCount(place);
 
                     const popupContent = `
                         <div style="font-family: 'Kanit', sans-serif; padding: 0px; width: 220px;">
-                            <img src="${imageUrl}" referrerpolicy="no-referrer" style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;" alt="${escapeHTML(place.name)}" onerror="this.onerror=null; this.src='${mapFallbackImg}';">
+                            ${placeImageHTML(imageUrl, place.name)}
                             <h4 style="margin: 0 0 4px 0; color: var(--primary-red, #e63946); font-size: 15px;">${escapeHTML(place.name)}</h4>
-                            <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><i class="fa-solid fa-tag"></i> ${place.category || 'ร้านค้า'} • 💰 ${priceInfo.symbol}</p>
-                            <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: 500;">⭐ ${rating}</p>
+                            <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><i class="fa-solid fa-tag"></i> ${escapeHTML(place.category || 'ยังไม่มีข้อมูลหมวดหมู่')} • ${escapeHTML(priceInfo.fullLabel)}</p>
+                            <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: 500;">${placeRatingText(rating, null)}</p>
                             <div style="display: flex; gap: 5px; margin-top: 10px;">
                                 <a href="detail.html?id=${place.id}" style="flex: 1; text-align: center; background: #eee; color: #333; padding: 6px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500;">ดูรายละเอียด</a>
-                                <a href="${mapUrl || `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}`}" target="_blank" style="flex: 1; text-align: center; background: var(--primary-red, #e63946); color: white; padding: 6px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500;"><i class="fa-solid fa-location-arrow"></i> นำทาง</a>
+                                <a href="${escapeHTML(mapUrl || `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}`)}" target="_blank" style="flex: 1; text-align: center; background: var(--primary-red, #e63946); color: white; padding: 6px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500;"><i class="fa-solid fa-location-arrow"></i> นำทาง</a>
                             </div>
                         </div>`;
                     marker.bindPopup(popupContent);
@@ -2462,14 +2379,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const { rating } = getEffectivePlaceRatingAndCount(selected);
 
             const updateCardData = () => {
-                document.getElementById('res-title').textContent = selected.name;
+                document.getElementById('res-title').textContent = selected.name || 'ยังไม่มีข้อมูลชื่อร้าน';
                 const resImg = document.getElementById('res-img');
                 resImg.referrerPolicy = 'no-referrer';
-                resImg.onerror = function () { this.onerror = null; this.src = getRelevantFallbackImage(selected); };
-                resImg.src = resolveHighResImage(selected.image_url, selected);
-                const photoLabel = getPlacePhotoLabel(selected, resImg.getAttribute('src'));
-                document.getElementById('res-rating').textContent = rating;
-                document.getElementById('res-cat').textContent = [selected.category || 'ร้านค้า', photoLabel].filter(Boolean).join(' · ');
+                setPlaceImage(resImg, getPlaceImage(selected), selected.name);
+                document.getElementById('res-rating').textContent = rating ?? 'ยังไม่มีข้อมูลคะแนน';
+                document.getElementById('res-cat').textContent = selected.category || 'ยังไม่มีข้อมูลหมวดหมู่';
                 document.getElementById('res-price').textContent = priceInfo.fullLabel;
                 document.getElementById('res-desc').textContent = getPlaceSummaryText(selected);
                 document.getElementById('res-link').href = `detail.html?id=${selected.id}`;
