@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (existing) existing.remove();
         const toast = document.createElement('div');
         toast.className = 'toast-notification';
-        toast.innerHTML = `<i class="fa-solid ${icon}" style="color: var(--primary-red); font-size: 16px;"></i><span>${message}</span>`;
+        toast.innerHTML = `<i class="fa-solid ${icon}" style="color: var(--primary-red); font-size: 16px;"></i><span>${escapeHTML(message)}</span>`;
         document.body.appendChild(toast);
         setTimeout(() => {
             toast.style.opacity = '0';
@@ -172,36 +172,51 @@ document.addEventListener('DOMContentLoaded', () => {
         return s;
     }
 
-    // Store status is self-contained. Times use the visitor's local clock; an
-    // end time earlier than the start time represents overnight business hours.
-    function getLiveStoreStatus(place, now = new Date()) {
-        const toMinutes = (value) => {
-            const match = cleanTextValue(value).match(/^(\d{1,2}):(\d{2})$/);
-            if (!match) return null;
-            const hours = Number(match[1]);
-            const minutes = Number(match[2]);
-            return hours < 24 && minutes < 60 ? (hours * 60) + minutes : null;
-        };
-        const openAt = toMinutes(place.open || place.open_time || place.opening_time);
-        const closeAt = toMinutes(place.close || place.close_time || place.closing_time);
+    function escapeHTML(value) {
+        return String(value ?? '').replace(/[&<>"']/g, character => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[character]);
+    }
 
-        if (openAt !== null && closeAt !== null) {
-            const currentTime = (now.getHours() * 60) + now.getMinutes();
-            const isOpen = openAt === closeAt
-                ? true // Same times represent a 24-hour business.
-                : closeAt > openAt
-                    ? currentTime >= openAt && currentTime < closeAt
-                    : currentTime >= openAt || currentTime < closeAt;
-            return { isOpen, hasHours: true };
+    const bangkokClock = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+    });
+
+    function normalizeStoreTime(value) {
+        const match = cleanTextValue(value).match(/^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/);
+        return match ? `${match[1].padStart(2, '0')}:${match[2]}` : '';
+    }
+
+    function getStoreHours(place) {
+        const opens = normalizeStoreTime(place.open || place.open_time || place.opening_time);
+        const closes = normalizeStoreTime(place.close || place.close_time || place.closing_time);
+        const estimate = place.magic_data?.hours;
+        const estimatedOpen = !opens && estimate?.source === 'category_estimate'
+            ? normalizeStoreTime(estimate.estimated_open) : '';
+        const estimatedClose = !closes && estimate?.source === 'category_estimate'
+            ? normalizeStoreTime(estimate.estimated_close) : '';
+        const displayOpen = opens || estimatedOpen;
+        const displayClose = closes || estimatedClose;
+        const times = [displayOpen && `เปิด ${displayOpen}`, displayClose && `ปิด ${displayClose}`].filter(Boolean);
+        return {
+            opens, closes,
+            label: times.length
+                ? `${times.join(' · ')}${estimatedOpen || estimatedClose ? ' (เวลาประมาณ)' : ''}`
+                : cleanTextValue(place.open_close || place['open-close']) || 'ยังไม่มีข้อมูลเวลา'
+        };
+    }
+
+    function getLiveStoreStatus(place, now = new Date()) {
+        const declaredStatus = cleanTextValue(place.status);
+        if (place.magic_data?.kind === 'closed' || /ปิดถาวร|ปิดไปแล้ว|permanently closed/i.test(place.name || '')
+            || /ปิด|closed/i.test(declaredStatus)) return false;
+        const { opens, closes } = getStoreHours(place);
+        if (opens && closes && opens !== closes) {
+            const currentTime = bangkokClock.format(now);
+            return closes > opens ? currentTime >= opens && currentTime < closes
+                : currentTime >= opens || currentTime < closes;
         }
-        if (openAt !== null) {
-            const currentTime = (now.getHours() * 60) + now.getMinutes();
-            return { isOpen: currentTime >= openAt && currentTime <= (22 * 60), hasHours: true };
-        }
-        if (typeof place.is_open === 'boolean') return { isOpen: place.is_open, hasHours: false };
-        const declaredStatus = String(place.status || '').trim().toLowerCase();
-        if (declaredStatus.includes('ปิด') || declaredStatus.includes('closed')) return { isOpen: false, hasHours: false };
-        return { isOpen: true, hasHours: false };
+        return typeof place.is_open === 'boolean' ? place.is_open : null;
     }
 
     // เลือกรูปค่ากลางที่ตรงกับประเภทร้านและชื่อร้านนั้นๆ (ใช้เฉพาะกรณีที่ร้านไม่มีรูปจาก Google Maps หรือลิงก์รูปเสีย)
@@ -209,6 +224,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof placeOrId !== 'object' || placeOrId === null) {
             const idx = Math.abs(Number(placeOrId) || 1) % FALLBACK_FOOD_IMAGES.length;
             return FALLBACK_FOOD_IMAGES[idx];
+        }
+        const image = placeOrId.magic_data?.image;
+        if (image?.source === 'category_illustration' && /^https:\/\/images\.unsplash\.com\//.test(image.url)) {
+            return image.url;
+        }
+        if (image?.source === 'category_placeholder') {
+            return 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
         }
         const idNum = Math.abs(Number(placeOrId.id) || 1);
         const name = String(placeOrId.name || '').toLowerCase();
@@ -301,6 +323,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return url;
     }
 
+    function getPlacePhotoLabel(place, resolvedUrl) {
+        if (resolvedUrl !== getRelevantFallbackImage(place)) return '';
+        return place.magic_data?.image?.source === 'category_placeholder' ? 'ยังไม่มีรูปสถานที่' : 'ภาพประกอบ';
+    }
+
     // คำนวณสัญลักษณ์ช่วงราคา ($ / $$ / $$$) และข้อความช่วงราคาบาท (S2-01)
     function getPlacePriceTiers(priceText) {
         if (!priceText) return ['$$'];
@@ -323,28 +350,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getPriceDisplayInfo(place) {
-        let rawPrice = cleanTextValue(place.price_range || place.price);
-        const rawFeatures = cleanTextValue(place.features);
-        // กรณีข้อมูลใน DB สลับช่องระหว่าง price_range กับ features (เช่นใน places_rows.csv บางแถว)
-        if ((!rawPrice || !/\d|\$/.test(rawPrice)) && /฿|\d+\s*-\s*\d+/.test(rawFeatures)) {
-            rawPrice = rawFeatures;
-        }
-        const tiers = getPlacePriceTiers(rawPrice);
-        const symbol = tiers[0] || '$$';
-        let rangeLabel = rawPrice;
-        if (!rangeLabel || !/\d/.test(rangeLabel)) {
-            if (symbol === '$') rangeLabel = '฿40 - ฿100';
-            else if (symbol === '$$') rangeLabel = '฿100 - ฿200';
-            else rangeLabel = '฿200 - ฿500+';
-        }
+        const validPrice = value => /^(?:[$]{1,3}|฿?\s*\d[\d,]*(?:\s*[-–]\s*฿?\s*\d[\d,]*)?\s*\+?\s*(?:บาท)?)$/.test(value);
+        const original = [place.price_range, place.price, place.features].map(cleanTextValue).find(validPrice);
+        const estimate = place.magic_data?.price;
+        const estimated = !original && estimate?.source === 'category_estimate' && validPrice(estimate.value);
+        const value = original || (estimated ? estimate.value : '');
+        const symbol = value ? getPlacePriceTiers(value)[0] : '';
         return {
             symbol,
-            rangeLabel,
-            fullLabel: `${symbol} (${rangeLabel})`
+            fullLabel: value ? `${value}${estimated ? ' (ราคาประมาณ)' : ''}` : 'ยังไม่มีข้อมูลราคา'
         };
     }
 
-    // ดึงหรือสร้างเบอร์โทรศัพท์ร้านค้า (S2-01)
+    // ดึงเบอร์โทรศัพท์จากข้อมูลของร้าน (S2-01)
     function getPlacePhone(place) {
         const directPhone = cleanTextValue(place.phone || place.phone_number || place.tel);
         if (directPhone) return directPhone;
@@ -354,21 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const match = combined.match(/(0\d{1,2}[-\s]?\d{3}[-\s]?\d{3,4})/);
         if (match) return match[1];
 
-        // เบอร์โทรศัพท์อ้างอิงตามโซนร้านค้ารอบ มธ. รังสิต (กรณีคอลัมน์ใน Supabase ไม่มีเบอร์โทรโดยตรง)
-        const idNum = Math.abs(Number(place.id) || 1);
-        const directoryPhones = [
-            '02-564-4440 (ติดต่อศูนย์บริการ มธ.)',
-            '089-813-6364',
-            '081-562-3646',
-            '084-761-6259',
-            '083-093-4541',
-            '098-251-7896',
-            '065-356-9211',
-            '080-959-1556',
-            '095-610-9571',
-            '087-325-1711'
-        ];
-        return directoryPhones[idNum % directoryPhones.length];
+        return 'ยังไม่มีข้อมูลเบอร์โทรศัพท์';
     }
 
     // ดึงที่อยู่ฉบับสมบูรณ์ (S2-01)
@@ -521,15 +525,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const addRandomHistory = async (place) => {
         if (!place || !place.id) return;
-        const priceInfo = getPriceDisplayInfo(place);
         const { rating } = getEffectivePlaceRatingAndCount(place);
         const entry = {
             id: place.id,
             name: place.name || 'ร้านค้า',
             category: place.category || 'ร้านอาหารและคาเฟ่',
-            rating: rating || '4.5',
-            price_range: priceInfo.fullLabel,
-            image_url: resolveHighResImage(place.image_url, place),
+            rating,
+            price_range: place.price_range || place.price || '',
+            magic_data: place.magic_data,
+            open: place.open,
+            close: place.close,
+            image_url: place.image_url,
             address: getPlaceAddress(place),
             phone: getPlacePhone(place),
             randomized_at: new Date().toISOString()
@@ -716,6 +722,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const { rating, reviewCount } = getEffectivePlaceRatingAndCount(place);
         const imgUrl = resolveHighResImage(place.image_url, place);
         const fallbackImg = getRelevantFallbackImage(place);
+        const photoLabel = getPlacePhotoLabel(place, imgUrl);
         const addressText = getPlaceAddress(place);
         const phoneText = getPlacePhone(place);
         const menus = getPlaceRecommendedMenus(place);
@@ -737,15 +744,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 <a href="detail.html?id=${place.id}" style="text-decoration: none; color: inherit;">
                     <div class="card">
                         <div class="card-image">
-                            <img src="${imgUrl}" alt="${place.name}" referrerpolicy="no-referrer" loading="lazy" onerror="this.onerror=null; this.src='${fallbackImg}';">
+                            <img src="${imgUrl}" alt="${escapeHTML(place.name)}" referrerpolicy="no-referrer" loading="lazy" onerror="this.onerror=null; this.src='${fallbackImg}';">
                             <span class="badge badge-rating">★ ${rating} (${reviewCount})</span>
-                            <span class="badge badge-price-tier">${priceInfo.symbol}</span>
+                            ${priceInfo.symbol ? `<span class="badge badge-price-tier">${priceInfo.symbol}</span>` : ''}
                             ${badgeDiscountHTML}
                         </div>
                         <div class="card-info">
                             ${historyBadgeHTML}
                             <div class="card-info-header">
-                                <h3 style="margin-bottom: 2px;">${place.name}</h3>
+                                <h3 style="margin-bottom: 2px;">${escapeHTML(place.name)}</h3>
+                                ${photoLabel ? `<small class="place-photo-label">${photoLabel}</small>` : ''}
                             </div>
                             ${typeof place.currently_open === 'boolean' ? `<span class="store-status ${place.currently_open ? 'is-open' : 'is-closed'}">${place.currently_open ? 'Open Now' : 'Closed'}</span>` : ''}
                             <p class="desc" style="margin-bottom: 6px;">${place.category || 'ร้านอาหารและคาเฟ่'}</p>
@@ -766,8 +774,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
 
                             <div class="card-footer">
-                                <span><i class="fa-regular fa-clock"></i> ${cleanTextValue(place.open) ? `${cleanTextValue(place.open)}${cleanTextValue(place.close) && cleanTextValue(place.close) !== '0:00' ? ' - ' + cleanTextValue(place.close) : ''}` : 'เปิดทุกวัน'}</span>
-                                <span class="price">${priceInfo.fullLabel}</span>
+                                <span><i class="fa-regular fa-clock"></i> ${escapeHTML(getStoreHours(place).label)}</span>
+                                <span class="price">${escapeHTML(priceInfo.fullLabel)}</span>
                             </div>
                         </div>
                     </div>
@@ -1002,7 +1010,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     rating,
                     review_count: reviewCount,
                     computed_distance: computedDistance !== undefined ? computedDistance : 999,
-                    currently_open: getLiveStoreStatus(place).isOpen
+                    currently_open: getLiveStoreStatus(place)
                 };
             });
 
@@ -1489,16 +1497,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const starCount = Math.min(5, Math.max(1, parseInt(review.rating, 10) || 5));
         const stars = '⭐'.repeat(starCount) + '☆'.repeat(5 - starCount);
 
-        let avatarHTML = `<div class="review-avatar">${(review.user_avatar || review.user_name || 'U').charAt(0).toUpperCase()}</div>`;
+        let avatarHTML = `<div class="review-avatar">${escapeHTML((review.user_avatar || review.user_name || 'U').charAt(0).toUpperCase())}</div>`;
         if (review.user_avatar && (String(review.user_avatar).startsWith('http') || String(review.user_avatar).startsWith('data:'))) {
-            avatarHTML = `<img src="${review.user_avatar}" alt="${review.user_name || 'User'}" referrerpolicy="no-referrer" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid var(--border-color);">`;
+            avatarHTML = `<img src="${escapeHTML(review.user_avatar)}" alt="${escapeHTML(review.user_name || 'User')}" referrerpolicy="no-referrer" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid var(--border-color);">`;
         }
 
         let imagesHTML = '';
         if (Array.isArray(review.image_urls) && review.image_urls.length > 0) {
             imagesHTML = '<div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">';
             review.image_urls.forEach(url => {
-                imagesHTML += `<img src="${url}" alt="Review photo" style="width:84px; height:84px; object-fit:cover; border-radius:8px; border:1px solid var(--border-color); cursor:pointer;" onclick="const cov=document.getElementById('detail-cover-image'); if(cov) cov.src=this.src;">`;
+                imagesHTML += `<img src="${escapeHTML(url)}" alt="Review photo" style="width:84px; height:84px; object-fit:cover; border-radius:8px; border:1px solid var(--border-color); cursor:pointer;" onclick="const cov=document.getElementById('detail-cover-image'); if(cov) cov.src=this.src;">`;
             });
             imagesHTML += '</div>';
         }
@@ -1506,11 +1514,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return `
             <div class="review-item ${isNewHighlight ? 'new-review-highlight' : ''}">
                 <div class="review-header">
-                    <div class="review-user">${avatarHTML}<span>${review.user_name || 'นักศึกษา มธ.'}</span></div>
+                    <div class="review-user">${avatarHTML}<span>${escapeHTML(review.user_name || 'นักศึกษา มธ.')}</span></div>
                     <span class="review-date" style="font-size: 12px; color: var(--text-muted);">${dateStr}</span>
                 </div>
                 <div class="review-stars">${stars} <span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">(${starCount}.0)</span></div>
-                <p class="review-text" style="margin-top: 6px;">${review.comment}</p>
+                <p class="review-text" style="margin-top: 6px;">${escapeHTML(review.comment)}</p>
                 ${imagesHTML}
             </div>`;
     }
@@ -1525,13 +1533,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return Array.isArray(data) ? data : [];
     }
 
-    // คำนวณคะแนนดาวเฉลี่ยใหม่ทันทีที่มีการส่งรีวิว และอัปเดตทั้ง DOM + Supabase (S2-02)
-    async function recalculateAndSyncRating(place, newStarValue) {
-        const reviews = await fetchCombinedPlaceReviews(place);
-        const newCount = reviews.length;
-        const newAvg = newCount
-            ? Number((reviews.reduce((total, review) => total + Number(review.rating || 0), 0) / newCount).toFixed(1))
-            : 0;
+    // PostgreSQL updates the aggregate in the same transaction as the review.
+    async function refreshPlaceReviewStats(place) {
+        const { data, error } = await supabaseClient.from('places')
+            .select('rating, review_count').eq('id', place.id).single();
+        if (error) throw error;
+        const { rating: newAvg, reviewCount: newCount } = getEffectivePlaceRatingAndCount(data);
 
         place.rating = newAvg;
         place.review_count = String(newCount);
@@ -1562,13 +1569,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const reviewPageCount = document.getElementById('review-page-count');
         if (reviewPageCount) reviewPageCount.textContent = `(${newCount} รีวิว)`;
 
-        // อัปเดตกลับไปยังตาราง places บน Supabase
-        if (!supabaseClient) throw new Error('ไม่สามารถเชื่อมต่อฐานข้อมูลร้านค้าได้');
-        const { error } = await supabaseClient.from('places')
-            .update({ rating: newAvg, review_count: String(newCount) }).eq('id', place.id);
-        if (error) throw error;
-
         return { newAvg, newCount };
+    }
+
+    async function showSavedReviewStatus(place) {
+        try {
+            const { newAvg, newCount } = await refreshPlaceReviewStats(place);
+            showToast(`ส่งรีวิวสำเร็จ! คะแนนเฉลี่ย ⭐ ${newAvg.toFixed(1)} (${newCount} รีวิว)`);
+        } catch (error) {
+            console.error('Review saved, but rating refresh failed:', error);
+            showToast('บันทึกรีวิวแล้ว แต่โหลดคะแนนล่าสุดไม่ได้ กรุณารีเฟรชหน้า');
+        }
     }
 
     // ---------------------------------------------------------
@@ -1606,6 +1617,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.src = relevantFallbackImg;
             };
             coverImgEl.src = coverImgUrl;
+            const label = getPlacePhotoLabel(place, coverImgUrl);
+            if (label) {
+                const caption = document.createElement('small');
+                caption.className = 'place-photo-label';
+                caption.textContent = label;
+                coverImgEl.insertAdjacentElement('afterend', caption);
+            }
         }
 
         const { rating, reviewCount } = getEffectivePlaceRatingAndCount(place);
@@ -1626,20 +1644,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Real-time open/closed indicator. The shared helper supports overnight
         // hours and is refreshed at each local minute boundary below.
-        const openTime = cleanTextValue(place.open || place.open_time);
-        const closeTime = cleanTextValue(place.close || place.close_time);
+        const hours = getStoreHours(place);
         const openBadge = document.getElementById('detail-open-badge');
         const updateDetailStoreStatus = () => {
             const status = getLiveStoreStatus(place);
-            const statusText = status.isOpen ? 'Open' : 'Closed';
+            const statusText = status === null ? 'ยังไม่ทราบสถานะ' : status ? 'Open' : 'Closed';
             if (openBadge) {
                 openBadge.textContent = `● ${statusText}`;
-                openBadge.className = `detail-meta-pill ${status.isOpen ? 'status-open' : 'status-closed'}`;
+                openBadge.className = `detail-meta-pill ${status === null ? '' : status ? 'status-open' : 'status-closed'}`;
                 openBadge.setAttribute('aria-label', `Store status: ${statusText}`);
             }
             const liveStatusRow = document.getElementById('detail-live-store-status');
             if (liveStatusRow) {
-                liveStatusRow.innerHTML = `<span>สถานะปัจจุบัน</span><span class="detail-live-status ${status.isOpen ? 'is-open' : 'is-closed'}">${statusText}</span>`;
+                liveStatusRow.innerHTML = `<span>สถานะปัจจุบัน</span><span class="detail-live-status ${status === null ? '' : status ? 'is-open' : 'is-closed'}">${statusText}</span>`;
             }
         };
 
@@ -1669,19 +1686,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // เวลาทำการและรายละเอียดเพิ่มเติม
         const hoursContainer = document.getElementById('detail-hours');
         if (hoursContainer) {
-            const openClose = place.open_close || place['open-close'];
-            let hoursHTML = '';
-            hoursHTML += '<div id="detail-live-store-status" class="hours-row detail-live-store-status" aria-live="polite"></div>';
-            if (openTime && closeTime && closeTime !== '0:00') {
-                hoursHTML += `<div class="hours-row"><span>เวลาเปิด - ปิด (ทุกวัน)</span><span style="font-weight: bold; color: var(--text-main);">${openTime} - ${closeTime} น.</span></div>`;
-            } else if (openTime) {
-                hoursHTML += `<div class="hours-row"><span>เวลาเปิดทำการ</span><span style="font-weight: bold; color: var(--text-main);">${openTime} น. เป็นต้นไป</span></div>`;
-            } else if (openClose) {
-                hoursHTML += `<div class="hours-row"><span>เวลาทำการ</span><span style="font-weight: bold; color: var(--text-main);">${openClose}</span></div>`;
-            } else {
-                hoursHTML += `<div class="hours-row"><span>เวลาทำการ</span><span style="font-weight: bold; color: var(--text-main);">เปิดให้บริการทุกวัน (08:00 - 20:00 น.)</span></div>`;
-            }
-            hoursHTML += `<div class="hours-row"><span>ระดับราคา ($/$$/$$$)</span><span style="font-weight: bold; color: var(--accent-gold);">${priceInfo.fullLabel}</span></div>`;
+            let hoursHTML = '<div id="detail-live-store-status" class="hours-row detail-live-store-status" aria-live="polite"></div>';
+            hoursHTML += `<div class="hours-row"><span>เวลาทำการ</span><span>${escapeHTML(hours.label)}</span></div>`;
+            hoursHTML += `<div class="hours-row"><span>ระดับราคา ($/$$/$$$)</span><span style="font-weight: bold; color: var(--accent-gold);">${escapeHTML(priceInfo.fullLabel)}</span></div>`;
             hoursHTML += `<div class="hours-row"><span>เบอร์ติดต่อร้านค้า</span><span style="font-weight: bold; color: var(--text-main);">${phoneText}</span></div>`;
             hoursContainer.innerHTML = hoursHTML;
         }
@@ -1735,7 +1742,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ].filter((u, idx, arr) => u && arr.indexOf(u) === idx).slice(0, 8);
 
             galleryContainer.innerHTML = galleryUrls.map((url, idx) => `
-                <img src="${url}" alt="ภาพร้าน ${idx + 1}" referrerpolicy="no-referrer" class="detail-gallery-thumb ${idx === 0 ? 'active' : ''}" onerror="this.onerror=null; if(${idx === 0}) { this.src='${relevantFallbackImg}'; } else { this.style.display='none'; }">
+                <img src="${escapeHTML(url)}" alt="ภาพร้าน ${idx + 1}" referrerpolicy="no-referrer" class="detail-gallery-thumb ${idx === 0 ? 'active' : ''}" onerror="this.onerror=null; if(${idx === 0}) { this.src='${relevantFallbackImg}'; } else { this.style.display='none'; }">
             `).join('');
 
             galleryContainer.querySelectorAll('.detail-gallery-thumb').forEach(thumb => {
@@ -1768,7 +1775,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             L.marker([coords.lat, coords.lng], { icon: redIcon })
                 .addTo(map)
-                .bindPopup(`<b style="font-family:'Kanit',sans-serif;">${place.name}</b><br><small>${addressText}</small>`)
+                .bindPopup(`<b style="font-family:'Kanit',sans-serif;">${escapeHTML(place.name)}</b><br><small>${addressText}</small>`)
                 .openPopup();
         }
 
@@ -1869,12 +1876,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         comment: newReview.comment, image_urls: null
                     }]);
                     if (insertError) throw insertError;
-                    const { newAvg, newCount } = await recalculateAndSyncRating(place, starVal);
                     await renderDetailReviews();
 
                     quickForm.reset();
                     if (currentGoogleUser && quickReviewerInput) quickReviewerInput.value = currentGoogleUser.fullName;
-                    showToast(`ส่งรีวิวสำเร็จ! คะแนนเฉลี่ยอัปเดตเป็น ⭐ ${newAvg.toFixed(1)} (${newCount} รีวิว)`);
+                    await showSavedReviewStatus(place);
                 } catch (err) {
                     showToast(`ส่งรีวิวไม่สำเร็จ: ${err.message}`, 'fa-triangle-exclamation');
                 } finally {
@@ -2073,7 +2079,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     comment: newReviewObj.comment, image_urls: newReviewObj.image_urls
                 }]);
                 if (insertError) throw insertError;
-                const { newAvg, newCount } = await recalculateAndSyncRating(currentPlace, starValue);
                 await loadAllReviews();
 
                 reviewForm.reset();
@@ -2082,7 +2087,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectedDataUrls = [];
                 if (previewContainer) previewContainer.innerHTML = '';
 
-                showToast(`ส่งรีวิวเรียบร้อย! คะแนนเฉลี่ยใหม่คือ ⭐ ${newAvg.toFixed(1)} (${newCount} รีวิว)`);
+                await showSavedReviewStatus(currentPlace);
             } catch (err) {
                 showToast('เกิดข้อผิดพลาด: ' + err.message, 'fa-triangle-exclamation');
             } finally {
@@ -2218,8 +2223,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const popupContent = `
                         <div style="font-family: 'Kanit', sans-serif; padding: 0px; width: 220px;">
-                            <img src="${imageUrl}" referrerpolicy="no-referrer" style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;" alt="${place.name}" onerror="this.onerror=null; this.src='${mapFallbackImg}';">
-                            <h4 style="margin: 0 0 4px 0; color: var(--primary-red, #e63946); font-size: 15px;">${place.name}</h4>
+                            <img src="${imageUrl}" referrerpolicy="no-referrer" style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;" alt="${escapeHTML(place.name)}" onerror="this.onerror=null; this.src='${mapFallbackImg}';">
+                            <h4 style="margin: 0 0 4px 0; color: var(--primary-red, #e63946); font-size: 15px;">${escapeHTML(place.name)}</h4>
                             <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;"><i class="fa-solid fa-tag"></i> ${place.category || 'ร้านค้า'} • 💰 ${priceInfo.symbol}</p>
                             <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: 500;">⭐ ${rating}</p>
                             <div style="display: flex; gap: 5px; margin-top: 10px;">
@@ -2309,10 +2314,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const cat = document.getElementById('new-place-category').value;
                     if (supabaseClient) {
                         try {
+                            const position = tempMarker.getLatLng().wrap();
                             const { error } = await supabaseClient.from('places').insert([{
                                 name: name,
                                 category: cat,
-                                'google map': `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
+                                'google map': `https://www.google.com/maps/search/?api=1&query=${position.lat.toFixed(7)},${position.lng.toFixed(7)}`
                             }]);
                             if (error) throw error;
                             showToast('เพิ่มร้านค้าลงบนแผนที่สำเร็จ!');
@@ -2461,8 +2467,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 resImg.referrerPolicy = 'no-referrer';
                 resImg.onerror = function () { this.onerror = null; this.src = getRelevantFallbackImage(selected); };
                 resImg.src = resolveHighResImage(selected.image_url, selected);
+                const photoLabel = getPlacePhotoLabel(selected, resImg.getAttribute('src'));
                 document.getElementById('res-rating').textContent = rating;
-                document.getElementById('res-cat').textContent = selected.category || 'ร้านค้า';
+                document.getElementById('res-cat').textContent = [selected.category || 'ร้านค้า', photoLabel].filter(Boolean).join(' · ');
                 document.getElementById('res-price').textContent = priceInfo.fullLabel;
                 document.getElementById('res-desc').textContent = getPlaceSummaryText(selected);
                 document.getElementById('res-link').href = `detail.html?id=${selected.id}`;
@@ -2522,61 +2529,53 @@ document.addEventListener('DOMContentLoaded', () => {
         let selectedCategory = 'all';
         let userCoordinates = null;
 
-        const getEventWindow = (item) => {
-            const startRaw = item.start_at || item.starts_at || item.start_date || item.dateTime || item.date_time;
-            const endRaw = item.end_at || item.ends_at || item.end_date;
-            const start = startRaw ? new Date(startRaw) : null;
-            let end = endRaw ? new Date(endRaw) : null;
-            if (!end && start && !Number.isNaN(start.valueOf())) {
-                end = new Date(start);
-                end.setHours(23, 59, 59, 999);
-            }
-            return { start: start && !Number.isNaN(start.valueOf()) ? start : null, end: end && !Number.isNaN(end.valueOf()) ? end : null };
+        const eventStatuses = {
+            upcoming: { text: '⏳ เร็วๆ นี้', className: 'status-upcoming' },
+            ongoing: { text: '🔥 กำลังจัดอยู่', className: 'status-ongoing' },
+            pending: { text: 'กำหนดการรอยืนยัน', className: 'status-upcoming' }
         };
-        const getEventStatus = (item) => {
-            const { start, end } = getEventWindow(item);
-            const now = new Date();
-            if (end && end < now) return { key: 'expired', text: 'สิ้นสุดแล้ว', className: 'status-expired' };
-            if (start && start > now) return { key: 'upcoming', text: '⏳ เร็วๆ นี้', className: 'status-upcoming' };
-            if (start && (!end || end >= now)) return { key: 'ongoing', text: '🔥 กำลังจัดอยู่', className: 'status-ongoing' };
-            return { key: 'upcoming', text: 'กำหนดการรอยืนยัน', className: 'status-upcoming' };
-        };
+        const eventDateFormat = new Intl.DateTimeFormat('th-TH', {
+            timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short'
+        });
 
         const loadRealEvents = async () => {
             if (!eventsGrid) return;
             eventsGrid.innerHTML = '<p class="data-state">กำลังโหลดกิจกรรม...</p>';
             try {
                 if (!supabaseClient) throw new Error('ไม่สามารถเชื่อมต่อฐานข้อมูลได้');
-                const { data: events, error } = await supabaseClient.from('events').select('*').order('created_at', { ascending: false });
+                const { data: events, error } = await supabaseClient.from('events').select('*,event_status').order('created_at', { ascending: false });
                 if (error) throw error;
 
                 eventsGrid.innerHTML = '';
                 const categoryNames = { food: 'อาหาร & ตลาดนัด', sports: 'กีฬา & กิจกรรม', promo: 'โปรโมชันส่วนลด', concert: 'คอนเสิร์ต & ดนตรี' };
 
-                const activeEvents = (events || []).filter(item => getEventStatus(item).key !== 'expired');
+                const activeEvents = (events || []).filter(item => item.event_status !== 'expired');
                 if (!activeEvents.length) {
                     eventsGrid.innerHTML = '<p class="data-state">ยังไม่มีกิจกรรมที่กำลังจะมาถึง</p>';
                     return;
                 }
                 activeEvents.forEach(item => {
-                    const status = getEventStatus(item);
+                    const status = eventStatuses[item.event_status] || eventStatuses.pending;
+                    const dateLabel = item.event_status !== 'pending' && item.start_at && item.end_at
+                        ? `${eventDateFormat.format(new Date(item.start_at))} – ${eventDateFormat.format(new Date(item.end_at))}`
+                        : item.dateTime || '';
                     const card = document.createElement('div');
                     card.className = 'event-card';
-                    card.dataset.category = `${item.category || 'food'} ${status.key}`;
+                    card.dataset.category = `${item.category || 'food'} ${item.event_status === 'pending' ? 'upcoming' : item.event_status}`;
                     if (item.lat && item.lng) { card.dataset.lat = item.lat; card.dataset.lng = item.lng; }
 
                     card.innerHTML = `
                         <div class="event-img-wrapper">
-                            <img src="${item.image_url || ''}" alt="${item.title || 'กิจกรรม'}" onerror="this.closest('.event-img-wrapper').classList.add('image-unavailable'); this.remove();">
+                            <img src="${escapeHTML(item.image_url)}" alt="${escapeHTML(item.title || 'กิจกรรม')}" onerror="this.closest('.event-img-wrapper').classList.add('image-unavailable'); this.remove();">
                             <span class="event-status-badge ${status.className}">${status.text}</span>
                             <span class="event-cat-badge">${categoryNames[item.category] || 'กิจกรรม'}</span>
                         </div>
                         <div class="event-body">
-                            <h3>${item.title}</h3>
-                            <p>${item.description}</p>
+                            <h3>${escapeHTML(item.title)}</h3>
+                            <p>${escapeHTML(item.description)}</p>
                             <div class="event-meta-info">
-                                <div class="event-meta-item"><i class="fa-regular fa-calendar"></i> ${item.dateTime || ''}</div>
-                                <div class="event-meta-item"><i class="fa-solid fa-location-dot"></i> ${item.location || ''}</div>
+                                <div class="event-meta-item"><i class="fa-regular fa-calendar"></i> ${escapeHTML(dateLabel)}</div>
+                                <div class="event-meta-item"><i class="fa-solid fa-location-dot"></i> ${escapeHTML(item.location)}</div>
                             </div>
                         </div>`;
                     eventsGrid.appendChild(card);
@@ -2645,6 +2644,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const formData = new FormData(activityForm);
+                const startAt = new Date(`${formData.get('dateTime')}+07:00`);
+                const endAt = new Date(`${formData.get('endDateTime')}+07:00`);
+                if (!(endAt > startAt)) {
+                    showToast('วันและเวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มต้น', 'fa-triangle-exclamation');
+                    return;
+                }
+
                 const btn = activityForm.querySelector('button[type="submit"]');
                 if (btn) { btn.disabled = true; btn.textContent = 'กำลังบันทึก...'; }
 
@@ -2655,6 +2661,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         location: formData.get('location'),
                         category: formData.get('category'),
                         dateTime: formData.get('dateTime'),
+                        start_at: startAt.toISOString(),
+                        end_at: endAt.toISOString(),
                         user_id: session.user.id
                     }]);
                     if (error) throw error;
