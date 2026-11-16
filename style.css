@@ -1795,3 +1795,15 @@ html, body {
 }
 .google-place-photo-credit a { color: inherit; }
 #detail-hours-value ul { margin: 8px 0; padding-inline-start: 20px; }
+
+.card-google-photo-credit {
+    display: block;
+    margin: 4px 8px;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    overflow-wrap: anywhere;
+}
+.card-google-photo-credit a {
+    color: inherit;
+    text-decoration: underline;
+}

@@ -7,14 +7,9 @@ const server = createClient(projectUrl, serviceKey, { auth: { persistSession: fa
 const allowedOrigin = Deno.env.get("GOOGLE_PLACES_SITE_ORIGIN") || "https://ixsaturnxi.github.io";
 const googleBase = "https://places.googleapis.com/v1/";
 
-function limit(name: string) {
-    const value = Number(Deno.env.get(name) || "0");
-    return Number.isInteger(value) && value >= 0 && value <= 1000 ? value : 0;
-}
-
-const searchLimit = limit("GOOGLE_PLACES_SEARCH_LIMIT");
-const detailsLimit = limit("GOOGLE_PLACES_DETAILS_LIMIT");
-const photoLimit = limit("GOOGLE_PLACES_PHOTOS_LIMIT");
+const searchLimit = 54;
+const detailsLimit = 60;
+const photoLimit = 500;
 
 async function reserve(sku: "details" | "photo", max: number) {
     if (!max) return false;
@@ -158,6 +153,42 @@ async function discoverPlace(place: Store) {
     return { id: validPlaceId(current?.google_place_id) };
 }
 
+type PlacePhoto = { name?: string; authorAttributions?: unknown[] };
+
+async function fetchPhoto(photo: PlacePhoto | undefined) {
+    if (!photo?.name || !/^places\/[A-Za-z0-9_-]+\/photos\/[A-Za-z0-9_-]+$/.test(photo.name)) {
+        return { photo: null, photoStatus: "no_photo" };
+    }
+    if (!await reserve("photo", photoLimit)) return { photo: null, photoStatus: "quota" };
+
+    // The resource comes directly from Google's authenticated response. It can
+    // contain the canonical ID even when Details was called using an older ID.
+    const url = new URL(googleBase + photo.name + "/media");
+    url.search = new URLSearchParams({ maxWidthPx: "800", skipHttpRedirect: "true" }).toString();
+    try {
+        const media = await fetch(url, {
+            headers: { "X-Goog-Api-Key": googleKey! },
+            redirect: "error",
+            signal: AbortSignal.timeout(8000),
+        });
+        const uri = media.ok ? (await media.json()).photoUri : null;
+        if (uri) return { photo: { uri, authors: photo.authorAttributions || [] }, photoStatus: "available" };
+    } catch {
+        // A missing photo must not prevent the rest of the place data loading.
+    }
+    return { photo: null, photoStatus: "google_error" };
+}
+
+async function fetchPlacePhoto(id: string) {
+    const metadata = await fetch(googleBase + "places/" + id, {
+        headers: { "X-Goog-Api-Key": googleKey!, "X-Goog-FieldMask": "photos" },
+        redirect: "error",
+        signal: AbortSignal.timeout(8000),
+    });
+    if (!metadata.ok) return { photo: null, photoStatus: "google_error" };
+    return fetchPhoto((await metadata.json()).photos?.[0]);
+}
+
 Deno.serve(async (request) => {
     const origin = request.headers.get("origin");
     const headers = {
@@ -171,7 +202,7 @@ Deno.serve(async (request) => {
     if (origin && origin !== allowedOrigin) return respond({ code: "origin" }, 403);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
     if (request.method !== "POST") return respond({ code: "method" }, 405);
-    if (!googleKey || !detailsLimit) return respond({ code: "disabled" }, 503);
+    if (!googleKey) return respond({ code: "disabled" }, 503);
 
     const token = request.headers.get("authorization")?.match(/^Bearer\s+(\S+)$/i)?.[1];
     if (!token) return respond({ code: "login" }, 401);
@@ -180,6 +211,7 @@ Deno.serve(async (request) => {
 
     try {
         const body = await request.json().catch(() => null);
+        const photoOnly = body?.mode === "photo";
         const localId = String(body?.id ?? "");
         if (!/^\d{1,19}$/.test(localId)) return respond({ code: "bad_id" }, 400);
 
@@ -188,6 +220,7 @@ Deno.serve(async (request) => {
         if (error) throw new Error("Place lookup failed");
         if (!place) return respond({ code: "no_place_id" }, 404);
         let id = placeIdFor(place);
+        if (!id && photoOnly) return respond({ code: "no_place_id" }, 404);
         if (!id) {
             const discovered = await discoverPlace(place);
             id = discovered.id || null;
@@ -197,7 +230,10 @@ Deno.serve(async (request) => {
                     : code === "google_error" ? 502 : code === "search_disabled" ? 503 : 404);
             }
         }
-        if (!await reserve("details", detailsLimit)) return respond({ code: "quota" }, 429);
+        if (photoOnly) return respond({ placeId: id, ...await fetchPlacePhoto(id) });
+        if (!await reserve("details", detailsLimit)) {
+            return respond({ placeId: id, detailsStatus: "quota", ...await fetchPlacePhoto(id) });
+        }
 
         const detailsResponse = await fetch(googleBase + "places/" + id + "?languageCode=th", {
             headers: {
@@ -209,26 +245,6 @@ Deno.serve(async (request) => {
         });
         if (!detailsResponse.ok) return respond({ code: "google_error" }, 502);
         const details = await detailsResponse.json();
-
-        const photo = details.photos?.[0];
-        let photoUri = null;
-        if (photo?.name && photo.name.startsWith(`places/${id}/photos/`)
-            && /^places\/[A-Za-z0-9_-]+\/photos\/[A-Za-z0-9_-]+$/.test(photo.name)
-            && await reserve("photo", photoLimit)) {
-            // Return Google's temporary media URL, never persist it or forward the API key.
-            const photoUrl = new URL(googleBase + photo.name + "/media");
-            photoUrl.search = new URLSearchParams({ maxWidthPx: "800", skipHttpRedirect: "true" }).toString();
-            try {
-                const media = await fetch(photoUrl, {
-                    headers: { "X-Goog-Api-Key": googleKey },
-                    redirect: "error",
-                    signal: AbortSignal.timeout(8000),
-                });
-                if (media.ok) photoUri = (await media.json()).photoUri || null;
-            } catch {
-                // Details are still usable if the optional image request fails.
-            }
-        }
 
         return respond({
             placeId: id,
@@ -245,7 +261,7 @@ Deno.serve(async (request) => {
             fetchedAt: new Date().toISOString(),
             mapsUrl: details.googleMapsUri,
             attributions: details.attributions || [],
-            photo: photoUri ? { uri: photoUri, authors: photo.authorAttributions || [] } : null,
+            ...await fetchPhoto(details.photos?.[0]),
         });
     } catch {
         return respond({ code: "server_error" }, 500);

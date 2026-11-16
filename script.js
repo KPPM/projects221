@@ -217,9 +217,9 @@ document.addEventListener('DOMContentLoaded', () => {
             .find(url => url && !/default_user\.png|(?:instagram|tiktok|facebook)\.com\/|wongnai\.com\/restaurants\//i.test(url)) || '';
     }
 
-    function placeImageHTML(url, alt) {
+    function placeImageHTML(url, alt, googlePhotoId = '') {
         const placeholder = '<span class="place-image-missing"';
-        if (!url) return `${placeholder}>ยังไม่มีรูปภาพ</span>`;
+        if (!url) return `${googlePhotoId ? `<img alt="${escapeHTML(alt)}" hidden referrerpolicy="no-referrer">` : ''}${placeholder}>ยังไม่มีรูปภาพ</span>`;
         return `<img src="${escapeHTML(url)}" alt="${escapeHTML(alt)}" loading="lazy" referrerpolicy="no-referrer"
             onerror="this.hidden=true; this.nextElementSibling.hidden=false;">${placeholder} hidden>โหลดรูปภาพไม่ได้</span>`;
     }
@@ -550,6 +550,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const priceInfo = getPriceDisplayInfo(place);
         const { rating, reviewCount } = getEffectivePlaceRatingAndCount(place);
         const imgUrl = getPlaceImage(place);
+        const googlePhotoId = extraMeta.searchPhotos && /^[A-Za-z0-9_-]{8,300}$/.test(place.google_place_id || '')
+            ? String(place.id) : '';
         const openStatus = place.currently_open ?? getLiveStoreStatus(place);
         const hoursLabel = escapeHTML(getStoreHours(place).label);
         const addressText = getPlaceAddress(place);
@@ -568,8 +570,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 </button>
                 <a href="detail.html?id=${place.id}" style="text-decoration: none; color: inherit;">
                     <div class="card">
-                        <div class="card-image">
-                            ${placeImageHTML(imgUrl, place.name)}
+                        <div class="card-image" data-photo-id="${escapeHTML(googlePhotoId)}" data-image-source="${escapeHTML(imgUrl)}">
+                            ${placeImageHTML(imgUrl, place.name, googlePhotoId)}
                             <span class="badge badge-rating">${placeRatingText(rating, reviewCount)}</span>
                             ${badgeDiscountHTML}
                         </div>
@@ -887,19 +889,83 @@ document.addEventListener('DOMContentLoaded', () => {
             updateDiscoveryRandomizerAvailability();
         };
 
+        let googlePhotoQuotaReached = false;
+        let photoQueue = Promise.resolve();
+
+        const loadCardGooglePhoto = async panel => {
+            const image = panel.querySelector('img');
+            if (!image || panel.dataset.googlePhotoRequested || !panel.isConnected || googlePhotoQuotaReached) return;
+            panel.dataset.googlePhotoRequested = 'true';
+            try {
+                const { data: auth } = await supabaseClient.auth.getSession();
+                if (!auth?.session || !panel.isConnected) return;
+                const { data, error } = await supabaseClient.functions.invoke('google-place', {
+                    body: { id: panel.dataset.photoId, mode: 'photo' },
+                });
+                if (error || !data) return;
+                if (data.photoStatus === 'quota') googlePhotoQuotaReached = true;
+                const url = httpUrl(data.photo?.uri);
+                if (!url || !panel.isConnected) return;
+                setPlaceImage(image, url, image.alt);
+                const credit = document.createElement('small');
+                credit.className = 'card-google-photo-credit';
+                appendGoogleCredit(credit, '', data.photo.authors);
+                const onError = image.onerror;
+                image.onerror = event => {
+                    onError?.call(image, event);
+                    credit.remove();
+                };
+                // Keep attribution links outside the link around the card.
+                panel.closest('.card-link').append(credit);
+            } catch {
+                // The original place card remains usable without Google.
+            }
+        };
+
+        const photoObserver = typeof IntersectionObserver === 'function' && supabaseClient
+            ? new IntersectionObserver(entries => {
+                entries.forEach(({ target, isIntersecting }) => {
+                    if (!isIntersecting) return;
+                    photoObserver.unobserve(target);
+                    const image = target.querySelector('img');
+                    const schedule = () => {
+                        photoQueue = photoQueue.then(() => loadCardGooglePhoto(target));
+                    };
+                    if (!image?.hasAttribute('src') || image.hidden) schedule();
+                    else if (!image.complete) image.addEventListener('error', schedule, { once: true });
+                    else if (!image.naturalWidth) schedule();
+                });
+            }) : null;
+
         function renderPlaces() {
-            cardGrid.innerHTML = '';
+            const previousPhotos = new Map(Array.from(cardGrid.querySelectorAll('[data-photo-id]:not([data-photo-id=""])'),
+                panel => [panel.dataset.photoId, panel]));
             if (currentFilteredPlaces.length === 0) {
+                previousPhotos.forEach(panel => photoObserver?.unobserve(panel));
                 cardGrid.innerHTML = '<p style="grid-column: span 3; text-align: center; color: var(--text-muted); padding: 40px 0;">ไม่พบร้านค้าที่ตรงกับเงื่อนไข</p>';
                 const loadBtn = document.querySelector('.load-more-btn');
                 if (loadBtn) loadBtn.style.display = 'none';
                 return;
             }
 
-            const placesToShow = currentFilteredPlaces.slice(0, displayLimit);
-            placesToShow.forEach(place => {
-                cardGrid.innerHTML += createCardHTML(place);
+            const template = document.createElement('template');
+            template.innerHTML = currentFilteredPlaces.slice(0, displayLimit)
+                .map(place => createCardHTML(place, { searchPhotos: true })).join('');
+            const newPhotos = [];
+            template.content.querySelectorAll('[data-photo-id]:not([data-photo-id=""])').forEach(panel => {
+                const previous = previousPhotos.get(panel.dataset.photoId);
+                if (previous?.dataset.imageSource === panel.dataset.imageSource) {
+                    previousPhotos.delete(panel.dataset.photoId);
+                    const credit = previous.closest('.card-link').querySelector('.card-google-photo-credit');
+                    if (credit) panel.closest('.card-link').append(credit);
+                    panel.replaceWith(previous);
+                } else {
+                    newPhotos.push(panel);
+                }
             });
+            previousPhotos.forEach(panel => photoObserver?.unobserve(panel));
+            cardGrid.replaceChildren(template.content);
+            newPhotos.forEach(panel => photoObserver?.observe(panel));
 
             const loadBtn = document.querySelector('.load-more-btn');
             if (loadBtn) loadBtn.style.display = (displayLimit >= currentFilteredPlaces.length) ? 'none' : 'block';
@@ -1490,7 +1556,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error(messages[failure?.code] || 'โหลดข้อมูลจาก Google Maps ไม่สำเร็จ');
                 }
                 onDetails(data);
-                message.hidden = true;
+                const quotaMessage = data.detailsStatus === 'quota' || data.photoStatus === 'quota';
+                message.hidden = !quotaMessage;
+                if (quotaMessage) message.textContent = messages.quota;
             } catch (error) {
                 message.hidden = false;
                 message.textContent = error.message || 'โหลดข้อมูลจาก Google Maps ไม่สำเร็จ';
